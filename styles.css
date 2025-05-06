@@ -1,0 +1,62 @@
+body {
+  font-family: sans-serif;
+  padding: 2rem;
+  max-width: 900px;
+  margin: auto;
+}
+h1 {
+  margin-bottom: 0.5rem;
+}
+#controls {
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+#controls label {
+  font-size: 0.9rem;
+}
+select, input[type=number] {
+  font-size: 0.9rem;
+  padding: 0.2rem;
+}
+#dropzone {
+  padding: 1.5rem;
+  border: 2px dashed #888;
+  color: #888;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s;
+}
+#dropzone.hover {
+  border-color: #333;
+}
+.loading {
+  font-style: italic;
+  color: #666;
+  margin-top: 1rem;
+}
+table {
+  border-collapse: collapse;
+  margin: 1rem 1.5%;
+  float: left;
+}
+th, td {
+  border: 1px solid #ccc;
+  padding: 0.3rem 0.6rem;
+}
+th {
+  background: #f0f0f0;
+  text-align: center;
+}
+.mini-table {
+  margin-top: 0.1rem;
+}
+@media(max-width:600px) {
+  table {
+    float: none;
+    width: 100%;
+    margin: 1rem 0;
+  }
+}
