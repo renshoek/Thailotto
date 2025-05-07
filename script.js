@@ -1,23 +1,14 @@
-/*  Thai Lotto Analyzer – fast GitHub‑Pages version
- *  ------------------------------------------------
- *  Key differences from the original:
- *   • discoverFiles() uses GitHub REST API -> 1 JSON request
- *   • 12‑parallel fetch pool (fast yet polite)
- *   • DRAW_DAYS trimmed to [1, 16]
- *   • Everything else is identical to your code
- *
- *  >>> EDIT the two constants below to match your GitHub project.
- */
-const USER = 'YOUR_GITHUB_USERNAME'; // <<< CHANGE ME
-const REPO = 'YOUR_REPOSITORY_NAME'; // <<< CHANGE ME
-const PARALLEL = 12;                 // concurrent downloads
+/* Thai Lotto Analyzer – automatic file loader version
+   Looks for every YYYY‑MM‑DD.txt (1st & 16th draws) in lottonumbers/
+   and re‑implements the full analysis UI without any upload step.
+*/
 
-/* ────────────── CONSTANTS ────────────── */
+
 const PRIZE_LIST  = ['FIRST','SECOND','THIRD','FOURTH','FIFTH',
                      'TWO','THREE_FIRST','THREE_LAST','NEAR_FIRST'];
 const FILENAME_RE = /(\d{4}-\d{2}-\d{2})/;
 const FIXED_START = new Date('2006-12-30T00:00');
-const DRAW_DAYS   = [1, 16];           // regular draw days only
+const DRAW_DAYS   = [ 30, 31, 1, 2, 3, 14, 15, 16, 17];                       // Thai draws occur on these days
 
 /* ────────────── DOM ELEMENTS ────────────── */
 const topNInput   = document.getElementById('topN');
@@ -85,27 +76,38 @@ function record(prize,val,date) {
   });
 }
 
-/* ─────────────── discoverFiles (NEW) ───────────────
-   One GitHub API call + 12‑parallel downloads
-*/
+/* ─────────────── AUTO‑DISCOVER FILES ─────────────── */
+
+
 async function discoverFiles() {
-  const api = `https://api.github.com/repos/${USER}/${REPO}/contents/lottonumbers`;
-  const dir = await fetch(api).then(r => r.json());
 
-  // keep only *.txt
-  const list = dir.filter(item => /\.txt$/.test(item.name));
 
-  /* 12‑parallel worker pool */
-  const queue = list.slice();     // simple LIFO queue
+
+
+
+
+
+
   const files = [];
-  const workers = Array.from({ length: PARALLEL }, async function worker() {
-    while (queue.length) {
-      const item = queue.pop();
-      const txt = await fetch(item.download_url).then(r => r.text());
-      files.push({ name: item.name, text: () => Promise.resolve(txt) });
+  const today = new Date();
+  for (let y = 2006; y <= today.getFullYear(); y++) {
+    for (let m = 1; m <= 12; m++) {
+      for (const d of DRAW_DAYS) {
+        if (y === 2006 && m === 12 && d < 30) continue;  // before first modern draw
+        const dateStr = `${y}-${pad2(m)}-${pad2(d)}`;
+        const url = `lottonumbers/${dateStr}.txt`;
+        try {
+          const resp = await fetch(url);
+          if (resp.ok) {
+            const txt = await resp.text();
+            // minimal File‑like object for downstream code
+            files.push({ name: `${dateStr}.txt`, text: () => Promise.resolve(txt) });
+          }
+        } catch { /* network / 404 errors are ignored */ }
+      }
     }
-  });
-  await Promise.all(workers);
+  }
+
   return files;
 }
 
