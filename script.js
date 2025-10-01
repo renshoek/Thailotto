@@ -1,19 +1,17 @@
 // script.js
-// Thai Lotto Analyzer - faster version
-// - concurrent fetch with limited concurrency
-// - parse each file once into a compact aggregate
-// - combine aggregates for UI filters, avoid reparsing
-// - simple IndexedDB cache to avoid re-downloading on revisit
-// - efficient DOM rendering using DocumentFragment
-// Notes: keep this file as module if you load it with type="module"
+// Faster Thai Lotto Analyzer - progressive load + progress + web worker + cache
+// Drop-in replacement for your previous script.js
+// Notes:
+//  - Progressive: loads recent draws first so UI becomes usable quickly
+//  - Uses a worker (created from a blob) to parse file text off the main thread
+//  - Shows simple progress text while fetching
+//  - Caches parsed aggregates in IndexedDB for faster subsequent loads
 
-const PRIZE_LIST  = ['FIRST','SECOND','THIRD','FOURTH','FIFTH',
-                     'TWO','THREE_FIRST','THREE_LAST','NEAR_FIRST'];
+const PRIZE_LIST  = ['FIRST','SECOND','THIRD','FOURTH','FIFTH','TWO','THREE_FIRST','THREE_LAST','NEAR_FIRST'];
 const FILENAME_RE = /(\d{4}-\d{2}-\d{2})/;
 const FIXED_START = new Date('2006-12-30T00:00');
-const DRAW_DAYS   = [ 30, 31, 1, 2, 3, 14, 15, 16, 17]; // Thai draws occur on these days
+const DRAW_DAYS   = [30,31,1,2,3,14,15,16,17];
 
-// UI elements
 const topNInput   = document.getElementById('topN');
 const yearsInput  = document.getElementById('yearsBack');
 const monthsInput = document.getElementById('monthsBack');
@@ -29,31 +27,30 @@ const drawsControl  = document.getElementById('drawsControl');
 const fixedStartCB  = document.getElementById('fixedStartCheckbox');
 const output        = document.getElementById('output');
 const loadingEl     = document.getElementById('loading');
-const prizeCheckboxes =
-  document.querySelectorAll('#prizeFieldset input[name="prize"]');
+const prizeCheckboxes = document.querySelectorAll('#prizeFieldset input[name="prize"]');
 
-// Application state
-let counts = {}, digitCounts = {}, lastFiles = [];
-let dateMap = [];          // {file, date, dateStr}
+let counts = {}, digitCounts = {};
+let dateMap = [];          // { dateStr, date }
 let selectedDates = new Set();
-let resultsByDate = {};    // raw prize strings per draw
+let resultsByDate = {};    // dateStr -> {PRIZE: "a, b"}
 
-// per-file aggregates map: dateStr -> aggregate
-// aggregate shape: { dateStr, prizesAgg: {PRIZE: { val: count, ... } }, digitAgg: {PRIZE: [ {digit:count}, ... ] }, results: {PRIZE: 'a, b'} }
-let perFileAggMap = new Map();
+let perFileAggMap = new Map(); // dateStr -> aggregate
 
-// -------------------- helpers --------------------
+// IndexedDB cache settings
+const DB_NAME = 'thai-lotto-agg-db';
+const STORE_NAME = 'agg-store';
+const CACHE_KEY = 'perFileAggMap_v2';
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+// ---------------- helpers ----------------
 const pad2 = n => n.toString().padStart(2,'0');
-const getSelectedPrizes = () =>
-  Array.from(prizeCheckboxes).filter(cb => cb.checked).map(cb => cb.value);
-const getTimeMode = () =>
-  Array.from(timeModeRadios).find(r => r.checked).value;
+const getSelectedPrizes = () => Array.from(prizeCheckboxes).filter(cb => cb.checked).map(cb => cb.value);
+const getTimeMode = () => Array.from(timeModeRadios).find(r => r.checked).value;
 
 function updateConversionLabels() {
   const mon = parseInt(monthsInput.value,10) || 0;
   const y = Math.floor(mon/12), m = mon % 12;
-  monthsLabel.textContent =
-    `(${y} year${y!==1?'s':''}${m?`, ${m} month${m!==1?'s':''}`:''})`;
+  monthsLabel.textContent = `(${y} year${y!==1?'s':''}${m?`, ${m} month${m!==1?'s':''}`:''})`;
 }
 
 function toggleTimeControls() {
@@ -64,7 +61,7 @@ function toggleTimeControls() {
 }
 
 function resetCounts() {
-  counts = {}; digitCounts = {}; resultsByDate = {};
+  counts = {}; digitCounts = {};
   PRIZE_LIST.forEach(p=>{
     counts[p] = {};
     const len = p==='TWO' ? 2 : p.startsWith('THREE') ? 3 : 6;
@@ -72,7 +69,6 @@ function resetCounts() {
   });
 }
 
-// record function used when combining aggregates; stores date sample up to cap
 function record(prize,val,date) {
   const bucket = counts[prize];
   bucket[val] = bucket[val] || {count:0, dates:[]};
@@ -84,9 +80,7 @@ function record(prize,val,date) {
   });
 }
 
-// -------------------- network and parsing --------------------
-
-// build list of candidate URLs from 2006 to today for known draw days
+// ---------------- candidate list ----------------
 function buildCandidateUrls() {
   const urls = [];
   const today = new Date();
@@ -102,10 +96,12 @@ function buildCandidateUrls() {
   return urls;
 }
 
-// concurrent fetch with limited concurrency
-async function batchFetch(urls, concurrency = 20) {
-  const results = [];            // {dateStr, text}
+// ---------------- concurrent fetch with progress ----------------
+async function batchFetchWithProgress(urls, concurrency = 20, onProgress = ()=>{}) {
+  const results = [];
   let idx = 0;
+  let completed = 0;
+  const total = urls.length;
 
   async function worker() {
     while (true) {
@@ -119,7 +115,10 @@ async function batchFetch(urls, concurrency = 20) {
           results.push({ dateStr, text });
         }
       } catch (e) {
-        // ignore network errors; could add retry logic here
+        // ignore
+      } finally {
+        completed++;
+        onProgress(completed, total, dateStr);
       }
     }
   }
@@ -129,57 +128,70 @@ async function batchFetch(urls, concurrency = 20) {
   return results;
 }
 
-// parse a single file text to compact aggregate
-function parseTextToAggregate(dateStr, text) {
-  const lines = text.split(/\r?\n/);
-  const prizesAgg = {};
-  const digitAgg = {};
-  const results = {};
+// ---------------- worker for parsing ----------------
+// create an inline worker so no external file needed
+function createParserWorker() {
+  const workerCode = `
+    const PRIZE_LIST = ${JSON.stringify(PRIZE_LIST)};
+    const pad2 = n => n.toString().padStart(2,'0');
 
-  PRIZE_LIST.forEach(p => {
-    prizesAgg[p] = {};   // val -> count
-    const len = p === 'TWO' ? 2 : p.startsWith('THREE') ? 3 : 6;
-    digitAgg[p] = Array.from({ length: len }, () => ({}));
-  });
-
-  lines.slice(1).forEach(line => {
-    if (!line.trim()) return;
-    const parts = line.trim().split(/\s+/);
-    const tag = parts[0];
-    const nums = parts.slice(1).filter(Boolean);
-    if (!prizesAgg[tag]) return;
-    const len = tag === 'TWO' ? 2 : tag.startsWith('THREE') ? 3 : 6;
-
-    const lastVals = nums.map(n => n.slice(-len));
-    results[tag] = lastVals.join(', ');
-
-    lastVals.forEach(val => {
-      if (!val) return;
-      prizesAgg[tag][val] = (prizesAgg[tag][val] || 0) + 1;
-      val.split('').forEach((d, i) => {
-        digitAgg[tag][i][d] = (digitAgg[tag][i][d] || 0) + 1;
+    function parseTextToAggregate(dateStr, text) {
+      const lines = text.split(/\\r?\\n/);
+      const prizesAgg = {};
+      const digitAgg = {};
+      const results = {};
+      PRIZE_LIST.forEach(p=>{
+        prizesAgg[p] = {};
+        const len = p==='TWO' ? 2 : p.startsWith('THREE') ? 3 : 6;
+        digitAgg[p] = Array.from({length: len}, ()=> ({}));
       });
-    });
-  });
+      lines.slice(1).forEach(line=>{
+        if (!line.trim()) return;
+        const parts = line.trim().split(/\\s+/);
+        const tag = parts[0];
+        const nums = parts.slice(1).filter(Boolean);
+        if (!prizesAgg[tag]) return;
+        const len = tag==='TWO' ? 2 : tag.startsWith('THREE') ? 3 : 6;
+        const lastVals = nums.map(n => n.slice(-len));
+        results[tag] = lastVals.join(', ');
+        lastVals.forEach(val=>{
+          if (!val) return;
+          prizesAgg[tag][val] = (prizesAgg[tag][val] || 0) + 1;
+          val.split('').forEach((d,i)=>{
+            digitAgg[tag][i][d] = (digitAgg[tag][i][d] || 0) + 1;
+          });
+        });
+      });
+      return { dateStr, prizesAgg, digitAgg, results };
+    }
 
-  return { dateStr, prizesAgg, digitAgg, results };
+    self.onmessage = (e) => {
+      const msg = e.data;
+      if (msg && msg.cmd === 'parseBatch') {
+        const files = msg.files || [];
+        const out = {};
+        for (const f of files) {
+          try {
+            out[f.dateStr] = parseTextToAggregate(f.dateStr, f.text);
+          } catch (err) {
+            // skip this file on error
+          }
+        }
+        self.postMessage({ type: 'done', results: out });
+      }
+    };
+  `;
+  const blob = new Blob([workerCode], { type: 'application/javascript' });
+  return new Worker(URL.createObjectURL(blob));
 }
 
-// -------------------- IndexedDB cache --------------------
-// Simple wrapper to store a single JSON blob 'perFileAggMap' with fetch time.
-const DB_NAME = 'thai-lotto-agg-db';
-const STORE_NAME = 'agg-store';
-const CACHE_KEY = 'perFileAggMap_v1';
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-
+// ---------------- IndexedDB cache ----------------
 function openDb() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, 1);
     req.onupgradeneeded = () => {
       const db = req.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
-      }
+      if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -197,7 +209,7 @@ async function saveCacheBlob(blob) {
       tx.onabort = tx.onerror = () => reject(tx.error || new Error('abort'));
     });
   } catch (e) {
-    // ignore cache save errors
+    // ignore
   }
 }
 
@@ -216,9 +228,7 @@ async function loadCacheBlob() {
   }
 }
 
-// -------------------- combining aggregates --------------------
-
-// combine per-file aggregates into global counts for a list of selected dates
+// ---------------- combine aggregates ----------------
 function combineAggregatesForDates(selectedDateStrs, perFileAggMapLocal) {
   resetCounts();
   resultsByDate = {};
@@ -227,7 +237,6 @@ function combineAggregatesForDates(selectedDateStrs, perFileAggMapLocal) {
   for (const dateStr of selectedDateStrs) {
     const agg = perFileAggMapLocal.get(dateStr);
     if (!agg) continue;
-
     for (const prize of PRIZE_LIST) {
       const prizeMap = agg.prizesAgg[prize] || {};
       for (const [val, cnt] of Object.entries(prizeMap)) {
@@ -236,24 +245,17 @@ function combineAggregatesForDates(selectedDateStrs, perFileAggMapLocal) {
         bucket[val].count += cnt;
         if (bucket[val].dates.length < MAX_DATES_RECORD) bucket[val].dates.push(dateStr);
       }
-      // digit counts
       const pods = agg.digitAgg[prize] || [];
-      pods.forEach((pod, i) => {
+      pods.forEach((pod,i)=>{
         const dest = digitCounts[prize][i];
-        for (const [dig, c] of Object.entries(pod)) {
-          dest[dig] = (dest[dig] || 0) + c;
-        }
+        for (const [dig, c] of Object.entries(pod)) dest[dig] = (dest[dig]||0) + c;
       });
     }
-
-    // store raw per-date results for draw mode display
     resultsByDate[dateStr] = agg.results || {};
   }
 }
 
-// -------------------- rendering --------------------
-
-// create a small helper to make table cells easily
+// ---------------- rendering ----------------
 function el(name, text, attrs = {}) {
   const e = document.createElement(name);
   if (text !== undefined && text !== null) e.textContent = text;
@@ -263,7 +265,6 @@ function el(name, text, attrs = {}) {
 
 function renderTables() {
   output.innerHTML = '';
-
   const showLeast = leastCheckbox.checked;
   const miniOnly  = miniOnlyCheckbox.checked;
   const N         = parseInt(topNInput.value,10) || 5;
@@ -278,52 +279,21 @@ function renderTables() {
     const bucket = counts[prize] || {};
     const tot    = Object.values(bucket).reduce((s,b)=>s+(b.count||0),0);
 
-    // build data array
     let data;
-    if (prize === 'TWO') {
-      data = Array.from({length:100}, (_,i)=>[pad2(i), bucket[pad2(i)] || {count:0,dates:[]}]);
-    } else {
-      data = Object.entries(bucket);
-    }
+    if (prize === 'TWO') data = Array.from({length:100}, (_,i)=>[pad2(i), bucket[pad2(i)] || {count:0,dates:[]}]);
+    else data = Object.entries(bucket);
 
-    data.sort((a,b)=>
-      showLeast ? (a[1].count - b[1].count) : (b[1].count - a[1].count)
-    );
+    data.sort((a,b)=> showLeast ? (a[1].count - b[1].count) : (b[1].count - a[1].count));
+    const entries = data.slice(0,N).map(([val,info])=>({ val, count: info.count || 0, dates: (info.dates||[]).slice(0,MAX) }));
 
-    const entries = data.slice(0,N).map(([val,info])=>({
-      val,
-      count: info.count || 0,
-      dates: (info.dates || []).slice(0,MAX)
-    }));
+    fragment.appendChild(el('div', `${prize}: ${tot} drawings`, { class: 'prize-header' }));
 
-    // header
-    const header = el('div', `${prize}: ${tot} drawings`);
-    header.className = 'prize-header';
-    fragment.appendChild(header);
-
-    // main table
     const tbl = document.createElement('table');
     const thead = document.createElement('thead');
-    const headRow1 = document.createElement('tr');
-    const thAll1 = document.createElement('th');
-    thAll1.colSpan = 2 + MAX;
-    thAll1.textContent = prize;
-    headRow1.appendChild(thAll1);
-    thead.appendChild(headRow1);
-
-    const headRow2 = document.createElement('tr');
-    const thAll2 = document.createElement('th');
-    thAll2.colSpan = 2 + MAX;
-    thAll2.textContent = `Drawings: ${tot}`;
-    headRow2.appendChild(thAll2);
-    thead.appendChild(headRow2);
-
-    const headRow3 = document.createElement('tr');
-    headRow3.appendChild(el('th','Value'));
-    headRow3.appendChild(el('th','Count'));
-    for (let i=0;i<MAX;i++) headRow3.appendChild(el('th', `Date ${i+1}`));
-    thead.appendChild(headRow3);
-
+    const r1 = document.createElement('tr');
+    const th1 = document.createElement('th'); th1.colSpan = 2+MAX; th1.textContent = prize; r1.appendChild(th1); thead.appendChild(r1);
+    const r2 = document.createElement('tr'); const th2 = document.createElement('th'); th2.colSpan = 2+MAX; th2.textContent = `Drawings: ${tot}`; r2.appendChild(th2); thead.appendChild(r2);
+    const r3 = document.createElement('tr'); r3.appendChild(el('th','Value')); r3.appendChild(el('th','Count')); for (let i=0;i<MAX;i++) r3.appendChild(el('th', `Date ${i+1}`)); thead.appendChild(r3);
     tbl.appendChild(thead);
 
     const tbody = document.createElement('tbody');
@@ -331,31 +301,21 @@ function renderTables() {
       const pct = tot ? ((e.count/tot)*100).toFixed(1) : '0.0';
       const tr = document.createElement('tr');
       tr.appendChild(el('td', e.val));
-      const tdCount = el('td', `${e.count} (${pct}%)`);
-      tdCount.style.textAlign = 'center';
+      const tdCount = el('td', `${e.count} (${pct}%)`); tdCount.style.textAlign = 'center';
       tr.appendChild(tdCount);
       for (let i=0;i<MAX;i++) tr.appendChild(el('td', e.dates[i] || ''));
       tbody.appendChild(tr);
     });
-
     tbl.appendChild(tbody);
 
-    if (miniOnly) {
-      const cols = 2+MAX;
-      // hide columns via CSS display inline on cells
-      // add a class to mark hidden mode
-      tbl.classList.add('mini-only-table');
-      // but still append table; column hiding done below
-    }
+    if (miniOnly) tbl.classList.add('mini-only-table');
 
     fragment.appendChild(tbl);
 
-    // mini digit-frequency table
+    // mini table
     const pods = digitCounts[prize];
-    const mini = document.createElement('table');
-    mini.className = 'mini-table';
-    const miniHead = document.createElement('tr');
-    miniHead.appendChild(el('th', 'Rank'));
+    const mini = document.createElement('table'); mini.className = 'mini-table';
+    const miniHead = document.createElement('tr'); miniHead.appendChild(el('th','Rank'));
     pods.forEach((_,i)=> miniHead.appendChild(el('th', `POD ${i+1}`)));
     mini.appendChild(miniHead);
 
@@ -364,7 +324,6 @@ function renderTables() {
       const tr = document.createElement('tr');
       tr.appendChild(el('td', ranks[rankIdx]));
       pods.forEach((dc)=>{
-        // build sorted array
         const entriesArr = Object.entries(dc);
         entriesArr.sort((a,b)=> showLeast ? (a[1]-b[1]) : (b[1]-a[1]));
         const [d='', c=0] = entriesArr[rankIdx] || [];
@@ -375,36 +334,25 @@ function renderTables() {
     }
     fragment.appendChild(mini);
 
-    // draws-mode recent details
-    if (mode==='draws' &&
-        ['FIRST','TWO','THREE_FIRST','THREE_LAST'].includes(prize)) {
-
-      const sorted = dateMap
-        .filter(x => selectedDates.has(x.dateStr))
-        .map(x => x.dateStr);
-
+    if (mode === 'draws' && ['FIRST','TWO','THREE_FIRST','THREE_LAST'].includes(prize)) {
+      const sorted = dateMap.filter(x => selectedDates.has(x.dateStr)).map(x => x.dateStr);
       let infoDates = [];
       if (fixedStartCB.checked) {
         if (sorted.length >= 3) infoDates = sorted.slice(-3).reverse();
       } else {
         if (sorted.length >= 3) infoDates = sorted.slice(0,3);
       }
-
       if (infoDates.length) {
         const infoDiv = document.createElement('div');
         infoDiv.style.cssText = 'font-size:0.8em;color:#555;margin-top:4px;';
-        infoDiv.textContent = infoDates
-          .map(d => `${d}: ${resultsByDate[d] ? (resultsByDate[d][prize] || '') : ''}`)
-          .join('  |  ');
+        infoDiv.textContent = infoDates.map(d => `${d}: ${resultsByDate[d] ? (resultsByDate[d][prize] || '') : ''}`).join('  |  ');
         fragment.appendChild(infoDiv);
       }
     }
   });
 
-  // append once
   output.appendChild(fragment);
 
-  // If miniOnly, hide table cells to reduce DOM paint cost
   if (miniOnly) {
     Array.from(document.querySelectorAll('table.mini-only-table')).forEach(tbl=>{
       const rows = Array.from(tbl.rows);
@@ -417,10 +365,8 @@ function renderTables() {
   }
 }
 
-// -------------------- top-level initialization and control wiring --------------------
-
+// ---------------- compute selected dates ----------------
 function computeSelectedDatesFromMode(perFileDates) {
-  // perFileDates: array of {dateStr, date}
   selectedDates.clear();
   const mode = getTimeMode();
 
@@ -434,18 +380,16 @@ function computeSelectedDatesFromMode(perFileDates) {
   }
 
   if (mode === 'years') {
-    const yrs  = parseInt(yearsInput.value,10) || 0;
+    const yrs = parseInt(yearsInput.value,10) || 0;
     if (fixedStartCB.checked) {
       const end = new Date(FIXED_START);
-      if (yrs > 0) end.setFullYear(end.getFullYear()+yrs);
+      if (yrs > 0) end.setFullYear(end.getFullYear() + yrs);
       perFileDates.filter(x => x.date >= FIXED_START && x.date <= end).forEach(x => selectedDates.add(x.dateStr));
     } else {
       if (yrs > 0) {
-        const cut = new Date(); cut.setFullYear(cut.getFullYear()-yrs);
+        const cut = new Date(); cut.setFullYear(cut.getFullYear() - yrs);
         perFileDates.filter(x => x.date >= cut).forEach(x => selectedDates.add(x.dateStr));
-      } else {
-        perFileDates.forEach(x => selectedDates.add(x.dateStr));
-      }
+      } else perFileDates.forEach(x => selectedDates.add(x.dateStr));
     }
     return;
   }
@@ -454,107 +398,143 @@ function computeSelectedDatesFromMode(perFileDates) {
     const mon = parseInt(monthsInput.value,10) || 0;
     if (fixedStartCB.checked) {
       const end = new Date(FIXED_START);
-      if (mon > 0) end.setMonth(end.getMonth()+mon);
+      if (mon > 0) end.setMonth(end.getMonth() + mon);
       perFileDates.filter(x => x.date >= FIXED_START && x.date <= end).forEach(x => selectedDates.add(x.dateStr));
     } else {
       if (mon > 0) {
-        const cut = new Date(); cut.setMonth(cut.getMonth()-mon);
+        const cut = new Date(); cut.setMonth(cut.getMonth() - mon);
         perFileDates.filter(x => x.date >= cut).forEach(x => selectedDates.add(x.dateStr));
-      } else {
-        perFileDates.forEach(x => selectedDates.add(x.dateStr));
-      }
+      } else perFileDates.forEach(x => selectedDates.add(x.dateStr));
     }
     return;
   }
 
-  // fallback: all
   perFileDates.forEach(x => selectedDates.add(x.dateStr));
 }
 
-// main fast discover and preprocess flow
-async function fastDiscoverAndPreprocess() {
+// ---------------- progressive fetch and process ----------------
+async function progressiveFetchAndProcess({ concurrency = 30, recentLimit = 150 } = {}) {
   loadingEl.style.display = 'block';
+  loadingEl.textContent = 'Checking cache...';
 
-  // try cache first
   const cached = await loadCacheBlob();
   let cacheUsed = false;
   if (cached && cached.fetchedAt && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS && cached.data) {
     try {
       // revive into Map
       perFileAggMap = new Map(Object.entries(cached.data));
-      // cached.data stores plain objects; ensure nested objects are fine
       cacheUsed = true;
     } catch (e) {
       perFileAggMap = new Map();
     }
   }
 
-  if (!cacheUsed) {
-    // build candidate list
-    const candidates = buildCandidateUrls();
-    // fetch in concurrent batches - tune concurrency for your server
-    const concurrency = 30;
-    const fetched = await batchFetch(candidates, concurrency);
+  const candidates = buildCandidateUrls();
+  // sort ascending by dateStr so slice semantics are easier
+  candidates.sort((a,b)=> a.dateStr.localeCompare(b.dateStr));
 
-    // parse each fetched file
-    for (const { dateStr, text } of fetched) {
-      try {
-        const agg = parseTextToAggregate(dateStr, text);
-        perFileAggMap.set(dateStr, agg);
-      } catch (e) {
-        // continue on parse errors
-      }
-    }
+  const worker = createParserWorker();
 
-    // save cache (as plain object)
-    const plainObj = {};
-    for (const [k, v] of perFileAggMap.entries()) plainObj[k] = v;
-    await saveCacheBlob({ fetchedAt: Date.now(), data: plainObj });
+  // helper to parse a batch using the worker
+  function parseBatchInWorker(batch) {
+    return new Promise((resolve, reject) => {
+      const handle = (ev) => {
+        if (ev.data && ev.data.type === 'done') {
+          worker.removeEventListener('message', handle);
+          resolve(ev.data.results || {});
+        }
+      };
+      worker.addEventListener('message', handle);
+      worker.postMessage({ cmd: 'parseBatch', files: batch });
+    });
   }
 
-  // build dateMap sorted
-  dateMap = Array.from(perFileAggMap.keys())
-    .map(d => ({ dateStr: d, date: new Date(d + 'T00:00') }))
-    .sort((a,b)=>a.date - b.date);
+  // If cache not used, do progressive fetch. If cache used, still refresh recent files to pick up changes.
+  // Strategy: fetch recentLimit most recent first, parse, render, then fetch older ones.
+  const total = candidates.length;
+  const recent = candidates.slice(Math.max(0, total - recentLimit));
+  const older  = candidates.slice(0, Math.max(0, total - recentLimit));
 
-  // compute selectedDates based on current controls
+  // We will skip files that are already cached in perFileAggMap
+  const recentToFetch = recent.filter(x => !perFileAggMap.has(x.dateStr));
+  const olderToFetch  = older .filter(x => !perFileAggMap.has(x.dateStr));
+
+  if (recentToFetch.length > 0) {
+    loadingEl.textContent = `Fetching recent ${recentToFetch.length} files...`;
+    const fetchedRecent = await batchFetchWithProgress(recentToFetch, concurrency, (done, tot, lastDate) => {
+      loadingEl.textContent = `Recent: ${done}/${tot} ${lastDate || ''}`;
+    });
+    // parse via worker in moderate sized groups to avoid huge worker payload at once
+    const groupSize = 50;
+    for (let i=0; i<fetchedRecent.length; i+=groupSize) {
+      const group = fetchedRecent.slice(i, i+groupSize);
+      const parsed = await parseBatchInWorker(group);
+      // parsed is an object map dateStr -> aggregate
+      for (const [k,v] of Object.entries(parsed)) perFileAggMap.set(k, v);
+    }
+  } else {
+    loadingEl.textContent = 'No recent files to download, using cache for recent draws.';
+  }
+
+  // build dateMap and render current view
+  dateMap = Array.from(perFileAggMap.keys()).map(d => ({ dateStr: d, date: new Date(d + 'T00:00') })).sort((a,b)=> a.date - b.date);
   computeSelectedDatesFromMode(dateMap);
-
-  // combine for those dates and render
   combineAggregatesForDates(Array.from(selectedDates), perFileAggMap);
-  loadingEl.style.display = 'none';
   renderTables();
+
+  // fetch older files in background
+  if (olderToFetch.length > 0) {
+    loadingEl.textContent = `Fetching older ${olderToFetch.length} files in background...`;
+    const fetchedOlder = await batchFetchWithProgress(olderToFetch, concurrency, (done, tot, lastDate) => {
+      loadingEl.textContent = `Background: ${done}/${tot} ${lastDate || ''}`;
+    });
+    const groupSize = 50;
+    for (let i=0; i<fetchedOlder.length; i+=groupSize) {
+      const group = fetchedOlder.slice(i, i+groupSize);
+      const parsed = await parseBatchInWorker(group);
+      for (const [k,v] of Object.entries(parsed)) perFileAggMap.set(k, v);
+    }
+
+    // rebuild dateMap and re-render final combined result
+    dateMap = Array.from(perFileAggMap.keys()).map(d => ({ dateStr: d, date: new Date(d + 'T00:00') })).sort((a,b)=> a.date - b.date);
+    computeSelectedDatesFromMode(dateMap);
+    combineAggregatesForDates(Array.from(selectedDates), perFileAggMap);
+    renderTables();
+  }
+
+  // update cache store with plain object
+  const plainObj = {};
+  for (const [k,v] of perFileAggMap.entries()) plainObj[k] = v;
+  await saveCacheBlob({ fetchedAt: Date.now(), data: plainObj });
+
+  loadingEl.style.display = 'none';
+  worker.terminate();
 }
 
-// -------------------- event wiring --------------------
-timeModeRadios.forEach(r=>
-  r.addEventListener('input', ()=>{
-    toggleTimeControls();
-    if (perFileAggMap.size) {
-      computeSelectedDatesFromMode(dateMap);
-      combineAggregatesForDates(Array.from(selectedDates), perFileAggMap);
-      renderTables();
-    }
-  }));
+// ---------------- event wiring ----------------
+timeModeRadios.forEach(r => r.addEventListener('input', ()=>{
+  toggleTimeControls();
+  if (perFileAggMap.size) {
+    computeSelectedDatesFromMode(dateMap);
+    combineAggregatesForDates(Array.from(selectedDates), perFileAggMap);
+    renderTables();
+  }
+}));
 
-yearsInput.addEventListener('input',   ()=>{ if(perFileAggMap.size){ computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); }});
-monthsInput.addEventListener('input',  ()=>{
-  updateConversionLabels();
-  if(perFileAggMap.size){ computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); }
-});
-drawsInput.addEventListener('input',   ()=>{ if(perFileAggMap.size){ computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); }});
+yearsInput.addEventListener('input', ()=>{ updateConversionLabels(); if (perFileAggMap.size) { computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); }});
+monthsInput.addEventListener('input', ()=>{ updateConversionLabels(); if (perFileAggMap.size) { computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); }});
+drawsInput.addEventListener('input', ()=>{ if (perFileAggMap.size) { computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); }});
 
-topNInput.addEventListener('input',    ()=>{ if(perFileAggMap.size) renderTables(); });
-leastCheckbox.addEventListener('input',()=>{ if(perFileAggMap.size) renderTables(); });
-miniOnlyCheckbox.addEventListener('input', ()=>{ if(perFileAggMap.size) renderTables(); });
+topNInput.addEventListener('input', ()=>{ if (perFileAggMap.size) renderTables(); });
+leastCheckbox.addEventListener('input', ()=>{ if (perFileAggMap.size) renderTables(); });
+miniOnlyCheckbox.addEventListener('input', ()=>{ if (perFileAggMap.size) renderTables(); });
 
-prizeCheckboxes.forEach(cb =>
-  cb.addEventListener('input', ()=>{ if(perFileAggMap.size) renderTables(); }));
+prizeCheckboxes.forEach(cb => cb.addEventListener('input', ()=>{ if (perFileAggMap.size) renderTables(); }));
 
 selectAll.addEventListener('input', ()=>{
   const c = selectAll.checked;
-  prizeCheckboxes.forEach(cb => (cb.checked = c));
-  if(perFileAggMap.size) renderTables();
+  prizeCheckboxes.forEach(cb => cb.checked = c);
+  if (perFileAggMap.size) renderTables();
 });
 
 fixedStartCB.addEventListener('input', ()=>{
@@ -564,11 +544,12 @@ fixedStartCB.addEventListener('input', ()=>{
   renderTables();
 });
 
-// -------------------- init --------------------
+// ---------------- init ----------------
 toggleTimeControls();
 updateConversionLabels();
 loadingEl.style.display = 'block';
-fastDiscoverAndPreprocess().catch(err=>{
-  console.error('Error in preprocess', err);
+loadingEl.textContent = 'Starting...';
+progressiveFetchAndProcess({ concurrency: 30, recentLimit: 150 }).catch(err=>{
+  console.error('Error during progressive load', err);
   loadingEl.style.display = 'none';
 });
