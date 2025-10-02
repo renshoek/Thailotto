@@ -19,6 +19,10 @@
         <div>
           <h1 class="title">Thai Lotto Analyzer</h1>
           <p class="subtitle">Analyze lottery patterns with frequency statistics and time-based filtering</p>
+          <div id="loading" class="loading">
+            <div class="loading-spinner"></div>
+            <p class="loading-text">Loading...</p>
+          </div>
         </div>
         <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
           <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -54,8 +58,21 @@
         </label>
 
         <div class="control-group">
+          <label for="topN" class="control-label">Top N</label>
+          <input type="number" id="topN" value="10" min="1" class="number-input">
+        </div>
+      </div>
+    </div>
+
+    <div class="control-panel control-panel-sticky">
+      <div class="controls-grid">
+        <div class="control-group">
           <span class="control-label">Time window:</span>
           <div class="radio-group">
+            <label class="radio-label">
+              <input type="radio" name="timeMode" value="all">
+              <span>All</span>
+            </label>
             <label class="radio-label">
               <input type="radio" name="timeMode" value="years" checked>
               <span>Years</span>
@@ -69,10 +86,31 @@
               <span>Draws</span>
             </label>
           </div>
-          <label class="checkbox-label checkbox-nested">
-            <input type="checkbox" id="fixedStartCheckbox">
-            <span>From Dec 30 2006 (forward)</span>
+          <div class="radio-group" style="margin-top: 0.5rem;">
+            <label class="radio-label">
+              <input type="radio" name="timeDirection" value="backward" checked>
+              <span>Backward</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="timeDirection" value="forward">
+              <span>Forward</span>
+            </label>
+          </div>
+          <span class="helper-text" style="margin-top: 0.25rem; display: block;">Backward: from most recent draws. Forward: from Dec 30 2006 onwards.</span>
+          <label class="checkbox-label checkbox-nested" style="margin-top: 0.5rem;">
+            <input type="checkbox" id="customStartCheckbox">
+            <span>Custom start date</span>
           </label>
+          <div id="customDateControl" class="control-group" style="display:none; margin-top: 0.5rem;">
+            <label for="customStartDate" class="control-label">Start date</label>
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="date" id="customStartDate" class="date-input date-input-narrow">
+                <button type="button" id="applyDateBtn" class="date-action-btn">Apply</button>
+              </div>
+              <button type="button" id="todayBtn" class="today-text-btn">today</button>
+            </div>
+          </div>
         </div>
 
         <div id="yearsControl" class="control-group">
@@ -90,22 +128,12 @@
           <label for="drawsCount" class="control-label">Draws</label>
           <input type="number" id="drawsCount" value="10" min="1" class="number-input">
         </div>
-
-        <div class="control-group">
-          <label for="topN" class="control-label">Top N</label>
-          <input type="number" id="topN" value="10" min="1" class="number-input">
-        </div>
       </div>
     </div>
 
     <label class="section-label">Prize types</label>
     <div class="tabs" role="tablist" id="prizeTabs"></div>
     <div class="tab-content" id="prizeTabContent"></div>
-
-    <div id="loading" class="loading">
-      <div class="loading-spinner"></div>
-      <p class="loading-text">Loading...</p>
-    </div>
 
     <div id="output"></div>
   </main>
