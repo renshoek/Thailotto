@@ -12,10 +12,15 @@ const drawsInput = document.getElementById('drawsCount');
 const leastCheckbox = document.getElementById('leastCheckbox');
 const miniOnlyCheckbox = document.getElementById('miniOnlyCheckbox');
 const timeModeRadios = document.querySelectorAll('input[name="timeMode"]');
+const timeDirectionRadios = document.querySelectorAll('input[name="timeDirection"]');
 const yearsControl = document.getElementById('yearsControl');
 const monthsControl = document.getElementById('monthsControl');
 const drawsControl = document.getElementById('drawsControl');
-const fixedStartCB = document.getElementById('fixedStartCheckbox');
+const customDateControl = document.getElementById('customDateControl');
+const customStartDate = document.getElementById('customStartDate');
+const customStartCheckbox = document.getElementById('customStartCheckbox');
+const applyDateBtn = document.getElementById('applyDateBtn');
+const todayBtn = document.getElementById('todayBtn');
 const output = document.getElementById('output');
 const loadingEl = document.getElementById('loading');
 const prizeTabsEl = document.getElementById('prizeTabs');
@@ -68,6 +73,10 @@ function getTimeMode() {
   return Array.from(timeModeRadios).find(r=>r.checked).value;
 }
 
+function getTimeDirection() {
+  return Array.from(timeDirectionRadios).find(r=>r.checked).value;
+}
+
 function updateConversionLabels() {
   const mon = parseInt(monthsInput.value,10) || 0;
   const y = Math.floor(mon/12), m = mon % 12;
@@ -76,9 +85,18 @@ function updateConversionLabels() {
 
 function toggleTimeControls() {
   const mode = getTimeMode();
+  const isAll = mode === 'all';
+  const isCustom = customStartCheckbox.checked;
+  
   yearsControl.style.display = mode==='years' ? 'flex':'none';
   monthsControl.style.display = mode==='months' ? 'flex':'none';
   drawsControl.style.display = mode==='draws' ? 'flex':'none';
+  customDateControl.style.display = isCustom ? 'flex':'none';
+  
+  // Disable length inputs when "All" is selected (but not direction radios)
+  yearsInput.disabled = isAll;
+  monthsInput.disabled = isAll;
+  drawsInput.disabled = isAll;
 }
 
 function resetCounts() {
@@ -303,10 +321,11 @@ function renderTables() {
 
     const tbl = document.createElement('table');
     const thead = document.createElement('thead');
-    const r1 = document.createElement('tr');
-    const th1 = document.createElement('th'); th1.colSpan = 2+MAX; th1.textContent = prize; r1.appendChild(th1); thead.appendChild(r1);
-    const r2 = document.createElement('tr'); const th2 = document.createElement('th'); th2.colSpan = 2+MAX; th2.textContent = `Drawings: ${tot}`; r2.appendChild(th2); thead.appendChild(r2);
-    const r3 = document.createElement('tr'); r3.appendChild(el('th','Winning no.')); r3.appendChild(el('th','Count')); for (let i=0;i<MAX;i++) r3.appendChild(el('th', `Date ${i+1}`)); thead.appendChild(r3);
+    const r3 = document.createElement('tr'); 
+    r3.appendChild(el('th','Winning no.')); 
+    r3.appendChild(el('th','Count')); 
+    for (let i=0;i<MAX;i++) r3.appendChild(el('th', `Date ${i+1}`)); 
+    thead.appendChild(r3);
     tbl.appendChild(thead);
 
     const tbody = document.createElement('tbody');
@@ -400,7 +419,9 @@ function renderTables() {
     if (mode === 'draws' && ['FIRST','TWO','THREE_FIRST','THREE_LAST'].includes(prize)) {
       const sorted = dateMap.filter(x => selectedDates.has(x.dateStr)).map(x => x.dateStr);
       let infoDates = [];
-      if (fixedStartCB.checked) {
+      const direction = getTimeDirection();
+      const isForward = direction === 'forward';
+      if (isForward) {
         if (sorted.length >= 3) infoDates = sorted.slice(-3).reverse();
       } else {
         if (sorted.length >= 3) infoDates = sorted.slice(0,3);
@@ -420,26 +441,45 @@ function renderTables() {
 function computeSelectedDatesFromMode(perFileDates) {
   selectedDates.clear();
   const mode = getTimeMode();
+  const direction = getTimeDirection();
+
+  // "All" mode - select all dates
+  if (mode === 'all') {
+    perFileDates.forEach(x => selectedDates.add(x.dateStr));
+    return;
+  }
+
+  const isForward = direction === 'forward';
+  
+  // Determine reference date based on custom checkbox
+  let referenceDate;
+  if (customStartCheckbox.checked && customStartDate.value) {
+    referenceDate = new Date(customStartDate.value + 'T00:00');
+  } else {
+    // Default: forward uses FIXED_START, backward uses current date
+    referenceDate = isForward ? FIXED_START : new Date();
+  }
 
   if (mode === 'draws') {
     const N = parseInt(drawsInput.value,10) || 1;
-    const slice = fixedStartCB.checked
-      ? perFileDates.filter(x => x.date >= FIXED_START).slice(0,N)
-      : perFileDates.slice(-N);
+    const slice = isForward
+      ? perFileDates.filter(x => x.date >= referenceDate).slice(0,N)
+      : perFileDates.filter(x => x.date <= referenceDate).slice(-N);
     slice.forEach(x => selectedDates.add(x.dateStr));
     return;
   }
 
   if (mode === 'years') {
     const yrs = parseInt(yearsInput.value,10) || 0;
-    if (fixedStartCB.checked) {
-      const end = new Date(FIXED_START);
+    if (isForward) {
+      const end = new Date(referenceDate);
       if (yrs > 0) end.setFullYear(end.getFullYear() + yrs);
-      perFileDates.filter(x => x.date >= FIXED_START && x.date <= end).forEach(x => selectedDates.add(x.dateStr));
+      perFileDates.filter(x => x.date >= referenceDate && x.date <= end).forEach(x => selectedDates.add(x.dateStr));
     } else {
       if (yrs > 0) {
-        const cut = new Date(); cut.setFullYear(cut.getFullYear() - yrs);
-        perFileDates.filter(x => x.date >= cut).forEach(x => selectedDates.add(x.dateStr));
+        const cut = new Date(referenceDate);
+        cut.setFullYear(cut.getFullYear() - yrs);
+        perFileDates.filter(x => x.date >= cut && x.date <= referenceDate).forEach(x => selectedDates.add(x.dateStr));
       } else perFileDates.forEach(x => selectedDates.add(x.dateStr));
     }
     return;
@@ -447,14 +487,15 @@ function computeSelectedDatesFromMode(perFileDates) {
 
   if (mode === 'months') {
     const mon = parseInt(monthsInput.value,10) || 0;
-    if (fixedStartCB.checked) {
-      const end = new Date(FIXED_START);
+    if (isForward) {
+      const end = new Date(referenceDate);
       if (mon > 0) end.setMonth(end.getMonth() + mon);
-      perFileDates.filter(x => x.date >= FIXED_START && x.date <= end).forEach(x => selectedDates.add(x.dateStr));
+      perFileDates.filter(x => x.date >= referenceDate && x.date <= end).forEach(x => selectedDates.add(x.dateStr));
     } else {
       if (mon > 0) {
-        const cut = new Date(); cut.setMonth(cut.getMonth() - mon);
-        perFileDates.filter(x => x.date >= cut).forEach(x => selectedDates.add(x.dateStr));
+        const cut = new Date(referenceDate);
+        cut.setMonth(cut.getMonth() - mon);
+        perFileDates.filter(x => x.date >= cut && x.date <= referenceDate).forEach(x => selectedDates.add(x.dateStr));
       } else perFileDates.forEach(x => selectedDates.add(x.dateStr));
     }
     return;
@@ -624,15 +665,31 @@ function renderMultiCheckboxes() {
 
 function wireGlobalControls() {
   timeModeRadios.forEach(r => r.addEventListener('input', ()=>{ toggleTimeControls(); computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); }));
+  timeDirectionRadios.forEach(r => r.addEventListener('input', ()=>{ computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); }));
 
   yearsInput.addEventListener('input', ()=>{ updateConversionLabels(); computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); });
   monthsInput.addEventListener('input', ()=>{ updateConversionLabels(); computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); });
   drawsInput.addEventListener('input', ()=>{ computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); });
+  customStartCheckbox.addEventListener('input', ()=>{ toggleTimeControls(); });
+
+  applyDateBtn.addEventListener('click', ()=>{ 
+    if (!perFileAggMap.size || !customStartDate.value) return; 
+    computeSelectedDatesFromMode(dateMap); 
+    combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); 
+    renderTables(); 
+  });
+
+  todayBtn.addEventListener('click', ()=>{ 
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    customStartDate.value = `${yyyy}-${mm}-${dd}`;
+  });
 
   topNInput.addEventListener('input', ()=>{ if (perFileAggMap.size) renderTables(); });
   leastCheckbox.addEventListener('input', ()=>{ if (perFileAggMap.size) renderTables(); });
   miniOnlyCheckbox.addEventListener('input', ()=>{ if (perFileAggMap.size) renderTables(); });
-  fixedStartCB.addEventListener('input', ()=>{ if (!perFileAggMap.size) return; computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); });
 }
 
 // Initialize
