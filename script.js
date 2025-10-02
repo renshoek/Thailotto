@@ -1,14 +1,8 @@
 // script.js
-// Faster Thai Lotto Analyzer - progressive load + progress + web worker + cache
-// Drop-in replacement for your previous script.js
-// Notes:
-//  - Progressive: loads recent draws first so UI becomes usable quickly
-//  - Uses a worker (created from a blob) to parse file text off the main thread
-//  - Shows simple progress text while fetching
-//  - Caches parsed aggregates in IndexedDB for faster subsequent loads
+// Thai Lotto Analyzer - tabs UI + progressive load + worker + cache
+// Drop-in replacement for previous script.js
 
 const PRIZE_LIST  = ['FIRST','SECOND','THIRD','FOURTH','FIFTH','TWO','THREE_FIRST','THREE_LAST','NEAR_FIRST'];
-const FILENAME_RE = /(\d{4}-\d{2}-\d{2})/;
 const FIXED_START = new Date('2006-12-30T00:00');
 const DRAW_DAYS   = [30,31,1,2,3,14,15,16,17];
 
@@ -19,7 +13,6 @@ const monthsLabel = document.getElementById('monthsLabel');
 const drawsInput  = document.getElementById('drawsCount');
 const leastCheckbox    = document.getElementById('leastCheckbox');
 const miniOnlyCheckbox = document.getElementById('miniOnlyCheckbox');
-const selectAll        = document.getElementById('selectAllPrizes');
 const timeModeRadios   = document.querySelectorAll('input[name="timeMode"]');
 const yearsControl  = document.getElementById('yearsControl');
 const monthsControl = document.getElementById('monthsControl');
@@ -27,7 +20,8 @@ const drawsControl  = document.getElementById('drawsControl');
 const fixedStartCB  = document.getElementById('fixedStartCheckbox');
 const output        = document.getElementById('output');
 const loadingEl     = document.getElementById('loading');
-const prizeCheckboxes = document.querySelectorAll('#prizeFieldset input[name="prize"]');
+const prizeTabsEl   = document.getElementById('prizeTabs');
+const prizeTabContent = document.getElementById('prizeTabContent');
 
 let counts = {}, digitCounts = {};
 let dateMap = [];          // { dateStr, date }
@@ -42,10 +36,25 @@ const STORE_NAME = 'agg-store';
 const CACHE_KEY = 'perFileAggMap_v2';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
-// ---------------- helpers ----------------
+// helpers
 const pad2 = n => n.toString().padStart(2,'0');
-const getSelectedPrizes = () => Array.from(prizeCheckboxes).filter(cb => cb.checked).map(cb => cb.value);
-const getTimeMode = () => Array.from(timeModeRadios).find(r => r.checked).value;
+
+function getSelectedPrizesFromTabState() {
+  const multiBox = prizeTabContent.querySelector('#prizeFieldset');
+  if (multiBox) {
+    const cbs = Array.from(multiBox.querySelectorAll('input[name="prize"]'));
+    const selected = cbs.filter(cb => cb.checked).map(cb => cb.value);
+    return selected;
+  }
+  const active = prizeTabsEl.querySelector('.tab.active');
+  if (!active) return [];
+  const mode = active.getAttribute('data-prize');
+  if (mode === 'all') return PRIZE_LIST.slice();
+  if (mode === 'multi') return [];
+  return [mode];
+}
+
+function getTimeMode() { return Array.from(timeModeRadios).find(r=>r.checked).value; }
 
 function updateConversionLabels() {
   const mon = parseInt(monthsInput.value,10) || 0;
@@ -80,7 +89,7 @@ function record(prize,val,date) {
   });
 }
 
-// ---------------- candidate list ----------------
+// candidate URLs
 function buildCandidateUrls() {
   const urls = [];
   const today = new Date();
@@ -96,7 +105,7 @@ function buildCandidateUrls() {
   return urls;
 }
 
-// ---------------- concurrent fetch with progress ----------------
+// concurrent fetch with progress
 async function batchFetchWithProgress(urls, concurrency = 20, onProgress = ()=>{}) {
   const results = [];
   let idx = 0;
@@ -115,7 +124,7 @@ async function batchFetchWithProgress(urls, concurrency = 20, onProgress = ()=>{
           results.push({ dateStr, text });
         }
       } catch (e) {
-        // ignore
+        // ignore individual fetch errors
       } finally {
         completed++;
         onProgress(completed, total, dateStr);
@@ -128,13 +137,10 @@ async function batchFetchWithProgress(urls, concurrency = 20, onProgress = ()=>{
   return results;
 }
 
-// ---------------- worker for parsing ----------------
-// create an inline worker so no external file needed
+// create parser worker inline
 function createParserWorker() {
   const workerCode = `
     const PRIZE_LIST = ${JSON.stringify(PRIZE_LIST)};
-    const pad2 = n => n.toString().padStart(2,'0');
-
     function parseTextToAggregate(dateStr, text) {
       const lines = text.split(/\\r?\\n/);
       const prizesAgg = {};
@@ -174,7 +180,7 @@ function createParserWorker() {
           try {
             out[f.dateStr] = parseTextToAggregate(f.dateStr, f.text);
           } catch (err) {
-            // skip this file on error
+            // skip
           }
         }
         self.postMessage({ type: 'done', results: out });
@@ -185,7 +191,7 @@ function createParserWorker() {
   return new Worker(URL.createObjectURL(blob));
 }
 
-// ---------------- IndexedDB cache ----------------
+// IndexedDB cache helpers
 function openDb() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, 1);
@@ -228,7 +234,7 @@ async function loadCacheBlob() {
   }
 }
 
-// ---------------- combine aggregates ----------------
+// combine aggregates for selected dates
 function combineAggregatesForDates(selectedDateStrs, perFileAggMapLocal) {
   resetCounts();
   resultsByDate = {};
@@ -255,7 +261,7 @@ function combineAggregatesForDates(selectedDateStrs, perFileAggMapLocal) {
   }
 }
 
-// ---------------- rendering ----------------
+// rendering helpers
 function el(name, text, attrs = {}) {
   const e = document.createElement(name);
   if (text !== undefined && text !== null) e.textContent = text;
@@ -270,7 +276,8 @@ function renderTables() {
   const N         = parseInt(topNInput.value,10) || 5;
   const MAX       = 11;
   const mode      = getTimeMode();
-  const selected  = getSelectedPrizes();
+
+  const selected = getSelectedPrizesFromTabState();
   if (!selected.length) return;
 
   const fragment = document.createDocumentFragment();
@@ -365,7 +372,7 @@ function renderTables() {
   }
 }
 
-// ---------------- compute selected dates ----------------
+// compute selected dates based on time mode
 function computeSelectedDatesFromMode(perFileDates) {
   selectedDates.clear();
   const mode = getTimeMode();
@@ -412,30 +419,25 @@ function computeSelectedDatesFromMode(perFileDates) {
   perFileDates.forEach(x => selectedDates.add(x.dateStr));
 }
 
-// ---------------- progressive fetch and process ----------------
+// progressive fetch and process
 async function progressiveFetchAndProcess({ concurrency = 30, recentLimit = 150 } = {}) {
   loadingEl.style.display = 'block';
   loadingEl.textContent = 'Checking cache...';
 
   const cached = await loadCacheBlob();
-  let cacheUsed = false;
   if (cached && cached.fetchedAt && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS && cached.data) {
     try {
-      // revive into Map
       perFileAggMap = new Map(Object.entries(cached.data));
-      cacheUsed = true;
     } catch (e) {
       perFileAggMap = new Map();
     }
   }
 
   const candidates = buildCandidateUrls();
-  // sort ascending by dateStr so slice semantics are easier
   candidates.sort((a,b)=> a.dateStr.localeCompare(b.dateStr));
 
   const worker = createParserWorker();
 
-  // helper to parse a batch using the worker
   function parseBatchInWorker(batch) {
     return new Promise((resolve, reject) => {
       const handle = (ev) => {
@@ -449,13 +451,10 @@ async function progressiveFetchAndProcess({ concurrency = 30, recentLimit = 150 
     });
   }
 
-  // If cache not used, do progressive fetch. If cache used, still refresh recent files to pick up changes.
-  // Strategy: fetch recentLimit most recent first, parse, render, then fetch older ones.
   const total = candidates.length;
   const recent = candidates.slice(Math.max(0, total - recentLimit));
   const older  = candidates.slice(0, Math.max(0, total - recentLimit));
 
-  // We will skip files that are already cached in perFileAggMap
   const recentToFetch = recent.filter(x => !perFileAggMap.has(x.dateStr));
   const olderToFetch  = older .filter(x => !perFileAggMap.has(x.dateStr));
 
@@ -464,25 +463,21 @@ async function progressiveFetchAndProcess({ concurrency = 30, recentLimit = 150 
     const fetchedRecent = await batchFetchWithProgress(recentToFetch, concurrency, (done, tot, lastDate) => {
       loadingEl.textContent = `Recent: ${done}/${tot} ${lastDate || ''}`;
     });
-    // parse via worker in moderate sized groups to avoid huge worker payload at once
     const groupSize = 50;
     for (let i=0; i<fetchedRecent.length; i+=groupSize) {
       const group = fetchedRecent.slice(i, i+groupSize);
       const parsed = await parseBatchInWorker(group);
-      // parsed is an object map dateStr -> aggregate
       for (const [k,v] of Object.entries(parsed)) perFileAggMap.set(k, v);
     }
   } else {
     loadingEl.textContent = 'No recent files to download, using cache for recent draws.';
   }
 
-  // build dateMap and render current view
   dateMap = Array.from(perFileAggMap.keys()).map(d => ({ dateStr: d, date: new Date(d + 'T00:00') })).sort((a,b)=> a.date - b.date);
   computeSelectedDatesFromMode(dateMap);
   combineAggregatesForDates(Array.from(selectedDates), perFileAggMap);
   renderTables();
 
-  // fetch older files in background
   if (olderToFetch.length > 0) {
     loadingEl.textContent = `Fetching older ${olderToFetch.length} files in background...`;
     const fetchedOlder = await batchFetchWithProgress(olderToFetch, concurrency, (done, tot, lastDate) => {
@@ -495,14 +490,12 @@ async function progressiveFetchAndProcess({ concurrency = 30, recentLimit = 150 
       for (const [k,v] of Object.entries(parsed)) perFileAggMap.set(k, v);
     }
 
-    // rebuild dateMap and re-render final combined result
     dateMap = Array.from(perFileAggMap.keys()).map(d => ({ dateStr: d, date: new Date(d + 'T00:00') })).sort((a,b)=> a.date - b.date);
     computeSelectedDatesFromMode(dateMap);
     combineAggregatesForDates(Array.from(selectedDates), perFileAggMap);
     renderTables();
   }
 
-  // update cache store with plain object
   const plainObj = {};
   for (const [k,v] of perFileAggMap.entries()) plainObj[k] = v;
   await saveCacheBlob({ fetchedAt: Date.now(), data: plainObj });
@@ -511,42 +504,106 @@ async function progressiveFetchAndProcess({ concurrency = 30, recentLimit = 150 
   worker.terminate();
 }
 
-// ---------------- event wiring ----------------
-timeModeRadios.forEach(r => r.addEventListener('input', ()=>{
-  toggleTimeControls();
-  if (perFileAggMap.size) {
+// tabs UI
+function buildTabs() {
+  prizeTabsEl.innerHTML = '';
+  const allTab = el('button', 'All', { class: 'tab', 'data-prize': 'all', type: 'button' });
+  prizeTabsEl.appendChild(allTab);
+  PRIZE_LIST.forEach(p => {
+    const b = el('button', p.replace(/_/g,' '), { class: 'tab', 'data-prize': p, type: 'button' });
+    prizeTabsEl.appendChild(b);
+  });
+  const multi = el('button', 'Multiple', { class: 'tab', 'data-prize': 'multi', type: 'button' });
+  multi.setAttribute('data-mode','multi');
+  prizeTabsEl.appendChild(multi);
+
+  setActiveTab('all');
+
+  prizeTabsEl.addEventListener('click', (ev)=>{
+    const btn = ev.target.closest('.tab');
+    if (!btn) return;
+    const prize = btn.getAttribute('data-prize');
+    setActiveTab(prize);
+  });
+}
+
+function setActiveTab(prize) {
+  Array.from(prizeTabsEl.children).forEach(b=>b.classList.toggle('active', b.getAttribute('data-prize')===prize));
+  if (prize === 'multi') {
+    renderMultiCheckboxes();
+  } else {
+    prizeTabContent.innerHTML = '';
+  }
+  if (prize !== 'multi' && prize !== 'all') {
+    // keep multi checkboxes in sync if they exist
+    const multiField = prizeTabContent.querySelector('#prizeFieldset');
+    if (multiField) {
+      const cbs = Array.from(multiField.querySelectorAll('input[name="prize"]'));
+      cbs.forEach(cb => cb.checked = (cb.value === prize));
+    }
+  }
+  computeSelectedDatesFromMode(dateMap);
+  combineAggregatesForDates(Array.from(selectedDates), perFileAggMap);
+  renderTables();
+}
+
+function renderMultiCheckboxes() {
+  const html = document.createElement('div');
+  const fs = document.createElement('fieldset'); fs.id = 'prizeFieldset';
+  const legend = document.createElement('legend'); legend.textContent = 'Prize Type';
+  fs.appendChild(legend);
+
+  const selectAll = document.createElement('label');
+  selectAll.style.display = 'block';
+  selectAll.innerHTML = '<input type="checkbox" id="selectAllPrizes" checked> Select/Deselect All';
+  fs.appendChild(selectAll);
+
+  PRIZE_LIST.forEach(p => {
+    const label = document.createElement('label');
+    label.style.display = 'inline-block';
+    label.style.marginRight = '0.6rem';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.name = 'prize'; cb.value = p; cb.checked = true;
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(' ' + p.replace(/_/g,' ')));
+    fs.appendChild(label);
+  });
+
+  html.appendChild(fs);
+  prizeTabContent.innerHTML = '';
+  prizeTabContent.appendChild(html);
+
+  const selectAllEl = prizeTabContent.querySelector('#selectAllPrizes');
+  const prizeCheckboxes = Array.from(prizeTabContent.querySelectorAll('input[name="prize"]'));
+  selectAllEl.addEventListener('input', ()=>{ const c = selectAllEl.checked; prizeCheckboxes.forEach(cb=>cb.checked = c); computeAndRender(); });
+  prizeCheckboxes.forEach(cb=> cb.addEventListener('input', ()=> computeAndRender()));
+
+  function computeAndRender(){
     computeSelectedDatesFromMode(dateMap);
     combineAggregatesForDates(Array.from(selectedDates), perFileAggMap);
     renderTables();
   }
-}));
+}
 
-yearsInput.addEventListener('input', ()=>{ updateConversionLabels(); if (perFileAggMap.size) { computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); }});
-monthsInput.addEventListener('input', ()=>{ updateConversionLabels(); if (perFileAggMap.size) { computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); }});
-drawsInput.addEventListener('input', ()=>{ if (perFileAggMap.size) { computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); }});
+// event wiring for global controls
+function wireGlobalControls() {
+  timeModeRadios.forEach(r => r.addEventListener('input', ()=>{ toggleTimeControls(); computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); }));
 
-topNInput.addEventListener('input', ()=>{ if (perFileAggMap.size) renderTables(); });
-leastCheckbox.addEventListener('input', ()=>{ if (perFileAggMap.size) renderTables(); });
-miniOnlyCheckbox.addEventListener('input', ()=>{ if (perFileAggMap.size) renderTables(); });
+  yearsInput.addEventListener('input', ()=>{ updateConversionLabels(); computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); });
+  monthsInput.addEventListener('input', ()=>{ updateConversionLabels(); computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); });
+  drawsInput.addEventListener('input', ()=>{ computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); });
 
-prizeCheckboxes.forEach(cb => cb.addEventListener('input', ()=>{ if (perFileAggMap.size) renderTables(); }));
+  topNInput.addEventListener('input', ()=>{ if (perFileAggMap.size) renderTables(); });
+  leastCheckbox.addEventListener('input', ()=>{ if (perFileAggMap.size) renderTables(); });
+  miniOnlyCheckbox.addEventListener('input', ()=>{ if (perFileAggMap.size) renderTables(); });
+  fixedStartCB.addEventListener('input', ()=>{ if (!perFileAggMap.size) return; computeSelectedDatesFromMode(dateMap); combineAggregatesForDates(Array.from(selectedDates), perFileAggMap); renderTables(); });
+}
 
-selectAll.addEventListener('input', ()=>{
-  const c = selectAll.checked;
-  prizeCheckboxes.forEach(cb => cb.checked = c);
-  if (perFileAggMap.size) renderTables();
-});
-
-fixedStartCB.addEventListener('input', ()=>{
-  if (!perFileAggMap.size) return;
-  computeSelectedDatesFromMode(dateMap);
-  combineAggregatesForDates(Array.from(selectedDates), perFileAggMap);
-  renderTables();
-});
-
-// ---------------- init ----------------
+// init
 toggleTimeControls();
 updateConversionLabels();
+buildTabs();
+wireGlobalControls();
 loadingEl.style.display = 'block';
 loadingEl.textContent = 'Starting...';
 progressiveFetchAndProcess({ concurrency: 30, recentLimit: 150 }).catch(err=>{
