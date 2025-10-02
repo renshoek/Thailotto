@@ -2,74 +2,113 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Thai Lotto Analyzer - Auto-load (fast)</title>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thai Lotto Analyzer</title>
+  <meta name="description" content="Analyze Thai lottery numbers with frequency statistics, time-based filtering, and intelligent caching. Track patterns across multiple prize categories with advanced data visualization.">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <header class="header">
+    <div class="container">
+      <div class="header-content">
+        <div>
+          <h1 class="title">Thai Lotto Analyzer</h1>
+          <p class="subtitle">Analyze lottery patterns with frequency statistics and time-based filtering</p>
+        </div>
+        <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
+          <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
 
-  <h1>Thai Lotto Analyzer</h1>
-  <p>
-    This version automatically loads every <code>.txt</code> result that lives inside a sibling
-    <code>lottonumbers/</code> folder. Prize controls are available in tabs; all other controls remain above the tabs.
-  </p>
+  <main class="container">
+    <div class="control-panel">
+      <div class="controls-grid">
+        <label class="checkbox-label">
+          <input type="checkbox" id="leastCheckbox">
+          <span>Show least common</span>
+        </label>
 
-  <!-- controls (non-prize controls stay above the tabs) -->
-  <div id="controls">
+        <label class="checkbox-label">
+          <input type="checkbox" id="miniOnlyCheckbox">
+          <span>Mini tables only</span>
+        </label>
 
-    <label style="margin-right:0.6rem;">
-      <input type="checkbox" id="leastCheckbox">
-      Show least common
-    </label>
+        <div class="control-group">
+          <span class="control-label">Time window:</span>
+          <div class="radio-group">
+            <label class="radio-label">
+              <input type="radio" name="timeMode" value="years" checked>
+              <span>Years</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="timeMode" value="months">
+              <span>Months</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="timeMode" value="draws">
+              <span>Draws</span>
+            </label>
+          </div>
+          <label class="checkbox-label checkbox-nested">
+            <input type="checkbox" id="fixedStartCheckbox">
+            <span>From Dec 30 2006 (forward)</span>
+          </label>
+        </div>
 
-    <label style="margin-right:0.6rem;">
-      <input type="checkbox" id="miniOnlyCheckbox">
-      Mini tables only
-    </label>
+        <div id="yearsControl" class="control-group">
+          <label for="yearsBack" class="control-label">Length years</label>
+          <input type="number" id="yearsBack" value="4" min="1" class="number-input">
+        </div>
 
-    <div style="margin-right:0.6rem;">
-      <span>Time window:</span><br>
-      <label><input type="radio" name="timeMode" value="years" checked> Years</label>
-      <label><input type="radio" name="timeMode" value="months"> Months</label>
-      <label><input type="radio" name="timeMode" value="draws"> Draws</label>
+        <div id="monthsControl" class="control-group" style="display:none;">
+          <label for="monthsBack" class="control-label">Length months</label>
+          <input type="number" id="monthsBack" value="24" min="1" class="number-input">
+          <span id="monthsLabel" class="helper-text">(2 years, 0 months)</span>
+        </div>
 
-      <label style="display:block; margin-top:0.4rem;">
-        <input type="checkbox" id="fixedStartCheckbox">
-        From Dec 30 2006 (forward)
-      </label>
+        <div id="drawsControl" class="control-group" style="display:none;">
+          <label for="drawsCount" class="control-label">Draws</label>
+          <input type="number" id="drawsCount" value="10" min="1" class="number-input">
+        </div>
+
+        <div class="control-group">
+          <label for="topN" class="control-label">Top N</label>
+          <input type="number" id="topN" value="10" min="1" class="number-input">
+        </div>
+      </div>
     </div>
 
-    <label id="yearsControl" style="margin-right:0.6rem;">
-      Length years<br>
-      <input type="number" id="yearsBack" value="4" min="1" style="width:4ch">
-    </label>
+    <label class="section-label">Prize types</label>
+    <div class="tabs" role="tablist" id="prizeTabs"></div>
+    <div class="tab-content" id="prizeTabContent"></div>
 
-    <label id="monthsControl" style="margin-right:0.6rem; display:none;">
-      Length months<br>
-      <input type="number" id="monthsBack" value="24" min="1" style="width:4ch"><br>
-      <span id="monthsLabel">(2 years, 0 months)</span>
-    </label>
+    <div id="loading" class="loading">
+      <div class="loading-spinner"></div>
+      <p class="loading-text">Loading...</p>
+    </div>
 
-    <label id="drawsControl" style="margin-right:0.6rem; display:none;">
-      Draws<br>
-      <input type="number" id="drawsCount" value="10" min="1" style="width:4ch">
-    </label>
-
-    <label>
-      Top N<br>
-      <input type="number" id="topN" value="10" min="1" style="width:4ch">
-    </label>
-
-  </div>
-  <!-- /controls -->
-
-  <!-- tabs for prize types -->
-  <div class="tabs" role="tablist" id="prizeTabs"></div>
-  <div class="tab-content" id="prizeTabContent"></div>
-
-  <div id="loading" style="display:none">Loading... please wait.</div>
-  <div id="output"></div>
+    <div id="output"></div>
+  </main>
 
   <script type="module" src="script.js"></script>
 </body>
