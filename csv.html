@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSV Export - Thai Lotto Analyzer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header-content">
+      <div>
+        <h1 class="header-title">Thai Lotto Analyzer</h1>
+        <p class="header-subtitle">CSV Export</p>
+      </div>
+      <div style="display: flex; gap: 1rem; align-items: center;">
+        <a href="index.html" class="csv-btn">← Back</a>
+        <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="control-panel">
+      <div class="controls-grid">
+        <div class="control-group">
+          <label for="prizeSelect" class="control-label">Prize type</label>
+          <select id="prizeSelect" class="select-input">
+            <option value="">Select prize type...</option>
+            <option value="FIRST">FIRST</option>
+            <option value="SECOND">SECOND</option>
+            <option value="THIRD">THIRD</option>
+            <option value="FOURTH">FOURTH</option>
+            <option value="FIFTH">FIFTH</option>
+            <option value="TWO">TWO</option>
+            <option value="THREE_FIRST">THREE FIRST</option>
+            <option value="THREE_LAST">THREE LAST</option>
+            <option value="NEAR_FIRST">NEAR FIRST</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <span class="control-label">Time range</span>
+          <div class="radio-group">
+            <label class="radio-label">
+              <input type="radio" name="timeRange" value="all" checked>
+              <span>All time</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="timeRange" value="custom" disabled>
+              <span>Custom range (disabled)</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <button type="button" id="showCsvBtn" class="csv-action-btn" disabled>Show CSV</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="csvOutput" class="csv-output" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <h3 style="margin: 0; font-size: 1rem;">CSV Data</h3>
+        <button type="button" id="copyBtn" class="csv-action-btn csv-action-btn-small">Copy to Clipboard</button>
+      </div>
+      <pre id="csvContent" class="csv-content"></pre>
+    </div>
+  </main>
+
+  <script src="csv.js"></script>
+</body>
+</html>
