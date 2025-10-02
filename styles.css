@@ -1,62 +1,126 @@
+/* styles.css - full styles for Thai Lotto Analyzer */
+
 body {
-  font-family: sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   padding: 2rem;
-  max-width: 900px;
+  max-width: 1100px;
   margin: auto;
+  color: #222;
+  background: #fff;
 }
+
 h1 {
   margin-bottom: 0.5rem;
+  font-size: 1.5rem;
 }
+
+p {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+/* controls */
 #controls {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
   align-items: center;
 }
+
 #controls label {
-  font-size: 0.9rem;
+  font-size: 0.95rem;
 }
+
 select, input[type=number] {
   font-size: 0.9rem;
   padding: 0.2rem;
 }
-#dropzone {
-  padding: 1.5rem;
-  border: 2px dashed #888;
-  color: #888;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color .2s;
-}
-#dropzone.hover {
-  border-color: #333;
-}
-.loading {
-  font-style: italic;
-  color: #666;
+
+/* tabs */
+.tabs {
   margin-top: 1rem;
+  border-bottom: 1px solid #e6e6e6;
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
 }
+
+.tab {
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+  background: #f7f7f7;
+  border: 1px solid #e0e0e0;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  font-weight: 600;
+}
+
+.tab.active {
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+
+.tab-content {
+  padding: 0.8rem 0.2rem 1.2rem;
+  border: 1px solid #e0e0e0;
+  border-top: none;
+  background: #fff;
+  border-radius: 0 6px 6px 6px;
+  margin-bottom: 1rem;
+}
+
+/* table styles */
 table {
   border-collapse: collapse;
   margin: 1rem 1.5%;
   float: left;
+  background: #fff;
 }
+
 th, td {
-  border: 1px solid #ccc;
-  padding: 0.3rem 0.6rem;
+  border: 1px solid #ddd;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.9rem;
 }
+
 th {
-  background: #f0f0f0;
+  background: #f4f4f4;
   text-align: center;
+  font-weight: 600;
 }
+
+.prize-header {
+  width: 100%;
+  clear: both;
+  font-weight: 700;
+  margin-top: 0.6rem;
+  margin-left: 1.5%;
+}
+
+/* mini table */
 .mini-table {
   margin-top: 0.1rem;
 }
-@media(max-width:600px) {
+
+/* responsive */
+@media(max-width:900px) {
   table {
     float: none;
     width: 100%;
     margin: 1rem 0;
   }
+  #controls { gap: 0.6rem; }
+}
+
+/* small visual tweaks */
+#loading {
+  margin-top: 0.8rem;
+  font-style: italic;
+  color: #666;
+}
+
+.mini-only-table {
+  width: auto;
 }
