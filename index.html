@@ -2,99 +2,75 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Thai Lotto Analyzer – Auto‑load (old)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Thai Lotto Analyzer - Auto-load (fast)</title>
 
-  <!-- optional extra styling; leave out if you already have this in styles.css -->
   <link rel="stylesheet" href="styles.css">
-  <style>
-    /* just keeps the “Loading…” text aligned */
-    #loading { margin-top: 1rem; font-style: italic; }
-  </style>
 </head>
 <body>
 
-  <h1>🇹🇭 Thai Lotto Analyzer</h1>
+  <h1>Thai Lotto Analyzer</h1>
   <p>
     This version automatically loads every <code>.txt</code> result that lives inside a sibling
-    <code>lottonumbers/</code> folder (no drag‑and‑drop needed)
+    <code>lottonumbers/</code> folder. Prize controls are available in tabs; all other controls remain above the tabs.
   </p>
 
-  <p>----------------------------</p>
-
-  <!-- ─────────────── CONTROLS ─────────────── -->
-  <h3>Controls</h3>
+  <!-- controls (non-prize controls stay above the tabs) -->
   <div id="controls">
 
-    <fieldset id="prizeFieldset">
-      <legend>
-        Prize Type —
-        <label><strong>
-          <input type="checkbox" id="selectAllPrizes" checked>
-          Select/Deselect All
-        </strong></label>
-      </legend>
-      <br>
-      <label><input type="checkbox" name="prize" value="FIRST"        checked> First</label>
-      <label><input type="checkbox" name="prize" value="SECOND"       checked> Second</label>
-      <label><input type="checkbox" name="prize" value="THIRD"        checked> Third</label>
-      <label><input type="checkbox" name="prize" value="FOURTH"       checked> Fourth</label>
-      <label><input type="checkbox" name="prize" value="FIFTH"        checked> Fifth</label>
-      <label><input type="checkbox" name="prize" value="TWO"          checked> Last two</label>
-      <label><input type="checkbox" name="prize" value="THREE_FIRST"  checked> First three</label>
-      <label><input type="checkbox" name="prize" value="THREE_LAST"   checked> Last three</label>
-      <label><input type="checkbox" name="prize" value="NEAR_FIRST"   checked> First’s Neighbours</label>
-    </fieldset>
-
-    <label style="margin-right:1rem;">
+    <label style="margin-right:0.6rem;">
       <input type="checkbox" id="leastCheckbox">
       Show least common
     </label>
 
-    <label style="margin-right:1rem;">
+    <label style="margin-right:0.6rem;">
       <input type="checkbox" id="miniOnlyCheckbox">
       Mini tables only
     </label>
 
-    <div style="margin-right:1rem;">
+    <div style="margin-right:0.6rem;">
       <span>Time window:</span><br>
-      <label><input type="radio" name="timeMode" value="years"  checked> Years</label>
+      <label><input type="radio" name="timeMode" value="years" checked> Years</label>
       <label><input type="radio" name="timeMode" value="months"> Months</label>
       <label><input type="radio" name="timeMode" value="draws"> Draws</label>
 
-      <label style="display:block; margin-top:0.5rem;">
+      <label style="display:block; margin-top:0.4rem;">
         <input type="checkbox" id="fixedStartCheckbox">
-        From Dec 30 2006 (forward)
+        From Dec 30 2006 (forward)
       </label>
     </div>
 
-    <label id="yearsControl" style="margin-right:1rem;">
-      Length (years)<br>
+    <label id="yearsControl" style="margin-right:0.6rem;">
+      Length years<br>
       <input type="number" id="yearsBack" value="4" min="1" style="width:4ch">
     </label>
 
-    <label id="monthsControl" style="margin-right:1rem; display:none;">
-      Length (months)<br>
+    <label id="monthsControl" style="margin-right:0.6rem; display:none;">
+      Length months<br>
       <input type="number" id="monthsBack" value="24" min="1" style="width:4ch"><br>
-      <span id="monthsLabel">(2 years, 0 months)</span>
+      <span id="monthsLabel">(2 years, 0 months)</span>
     </label>
 
-    <label id="drawsControl" style="margin-right:1rem; display:none;">
+    <label id="drawsControl" style="margin-right:0.6rem; display:none;">
       Draws<br>
       <input type="number" id="drawsCount" value="10" min="1" style="width:4ch">
     </label>
 
     <label>
-      Top N<br>
+      Top N<br>
       <input type="number" id="topN" value="10" min="1" style="width:4ch">
     </label>
 
   </div>
   <!-- /controls -->
 
-  <div id="loading" style="display:none">Loading… please wait.</div>
+  <!-- tabs for prize types -->
+  <div class="tabs" role="tablist" id="prizeTabs"></div>
+  <div class="tab-content" id="prizeTabContent"></div>
+
+  <div id="loading" style="display:none">Loading... please wait.</div>
   <div id="output"></div>
 
-  <!-- the actual logic -->
   <script type="module" src="script.js"></script>
 </body>
 </html>
