@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deep Insights – Thai Lotto Analyzer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    /* ── Insights-only additions ─────────────────────────────────────────── */
+
+    .select-input {
+      padding: 0.375rem 0.625rem;
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) * 0.75);
+      background: var(--background);
+      color: var(--foreground);
+      font-size: 0.875rem;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .select-input:focus { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+    .status-bar {
+      display: flex; align-items: center; gap: 0.75rem;
+      font-size: 0.75rem; color: var(--muted-foreground);
+      padding: 0.5rem 0; flex-wrap: wrap; margin-top: 0.75rem;
+    }
+    .status-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--muted-foreground); flex-shrink: 0; }
+    .status-dot.live { background: #22c55e; box-shadow: 0 0 0 3px #22c55e22; }
+
+    /* Stat cards */
+    .stat-cards-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-top: 1.25rem; }
+    .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; box-shadow: var(--shadow-sm); }
+    .stat-card-label { font-size: 0.6875rem; color: var(--muted-foreground); font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; }
+    .stat-card-value { font-size: 1.875rem; font-weight: 700; letter-spacing: -0.03em; margin-top: 0.25rem; font-variant-numeric: tabular-nums; }
+    .stat-card-sub { font-size: 0.7rem; color: var(--muted-foreground); margin-top: 0.125rem; line-height: 1.4; }
+
+    /* Insight card layout */
+    .insight-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem 1.5rem; box-shadow: var(--shadow-sm); }
+    .insight-card-title { font-size: 0.9375rem; font-weight: 600; margin-bottom: 0.125rem; }
+    .insight-card-subtitle { font-size: 0.75rem; color: var(--muted-foreground); margin-bottom: 1rem; line-height: 1.6; }
+
+    .insight-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.25rem; }
+    @media (max-width: 900px) { .insight-two-col { grid-template-columns: 1fr; } }
+    .insights-section { margin-top: 1.25rem; }
+
+    .chart-wrap { position: relative; width: 100%; }
+
+    /* Hot/Cold rows */
+    .temp-row {
+      display: flex; align-items: center; padding: 0.3125rem 0;
+      border-bottom: 1px solid var(--border); gap: 0.625rem; font-size: 0.8125rem;
+      cursor: default;
+    }
+    .temp-row:last-child { border-bottom: none; }
+    .temp-num { font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 0.875rem; min-width: 5.5rem; }
+    .temp-bar-wrap { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .temp-bar { height: 100%; border-radius: 3px; }
+    .temp-bar-hot  { background: hsl(15, 80%, 58%); }
+    .temp-bar-cold { background: hsl(200, 70%, 55%); }
+    .temp-meta { color: var(--muted-foreground); font-size: 0.6875rem; text-align: right; min-width: 9rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+    /* Tooltip-style hover helper */
+    [data-tip] { cursor: help; border-bottom: 1px dashed var(--border); }
+
+    /* Overdue rows */
+    .overdue-row { display: grid; grid-template-columns: 6rem 1fr auto; align-items: center; gap: 0.75rem; padding: 0.375rem 0; border-bottom: 1px solid var(--border); cursor: default; }
+    .overdue-row:last-child { border-bottom: none; }
+    .overdue-num { font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 0.875rem; }
+    .overdue-track { height: 8px; background: var(--border); border-radius: 4px; position: relative; overflow: visible; }
+    .overdue-fill { height: 100%; border-radius: 4px; position: absolute; top: 0; left: 0; }
+    .overdue-marker { position: absolute; top: -4px; width: 2px; height: 16px; background: var(--foreground); border-radius: 1px; opacity: 0.4; cursor: help; }
+    .overdue-label { font-size: 0.6875rem; color: var(--muted-foreground); white-space: nowrap; text-align: right; min-width: 8rem; font-variant-numeric: tabular-nums; }
+
+    /* Candidate cards */
+    .candidate-cards { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.875rem; }
+    .candidate-card { background: var(--background); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.875rem 1.125rem; min-width: 148px; }
+    .candidate-rank { font-size: 0.6875rem; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; margin-bottom: 0.25rem; }
+    .candidate-num { font-family: 'JetBrains Mono', monospace; font-size: 1.625rem; font-weight: 700; letter-spacing: 0.04em; color: var(--primary); }
+    .candidate-meta { font-size: 0.7rem; color: var(--muted-foreground); margin-top: 0.375rem; line-height: 1.6; }
+    .candidate-overdue { color: hsl(15, 80%, 58%); font-weight: 600; }
+
+    .disclaimer { background: var(--background); border: 1px solid var(--border); border-radius: calc(var(--radius) * 0.75); padding: 0.625rem 1rem; font-size: 0.75rem; color: var(--muted-foreground); margin-top: 0.875rem; line-height: 1.55; }
+
+    #gapTableWrap table { margin-bottom: 0; }
+
+    /* Range slider */
+    .range-wrap { display: flex; align-items: center; gap: 0.75rem; }
+    .range-wrap input[type=range] { flex: 1; accent-color: var(--primary); cursor: pointer; }
+    .range-val { font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem; font-weight: 600; min-width: 3rem; }
+
+    /* Window mode control */
+    .window-mode-wrap { display: flex; flex-direction: column; gap: 0.5rem; }
+    .window-inline { display: flex; align-items: center; gap: 0.625rem; flex-wrap: wrap; margin-top: 0.25rem; }
+
+    /* Section header legend */
+    .section-legend { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.875rem; font-size: 0.75rem; color: var(--muted-foreground); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+    .header-title  { font-size: 1.75rem; font-weight: 600; letter-spacing: -0.025em; }
+    .header-subtitle { font-size: 0.875rem; color: var(--muted-foreground); margin-top: 0.25rem; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-content" style="max-width:1400px;margin:0 auto;padding:0 1.5rem;">
+      <div>
+        <h1 class="header-title">Thai Lotto Analyzer</h1>
+        <p class="header-subtitle">Deep Insights</p>
+      </div>
+      <div style="display:flex;gap:1rem;align-items:center;">
+        <a href="index.html" class="csv-btn">← Analyzer</a>
+        <a href="results.html" class="csv-btn">Results</a>
+        <a href="csv.html" class="csv-btn">CSV</a>
+        <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
+          <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" id="mainContent">
+
+    <!-- Controls -->
+    <div class="control-panel" style="margin-top:2rem;">
+      <div class="controls-grid">
+
+        <!-- Prize -->
+        <div class="control-group">
+          <label class="control-label" for="prizeSelect">Prize category</label>
+          <select id="prizeSelect" class="select-input">
+            <option value="FIRST">First Prize (6-digit jackpot)</option>
+            <option value="TWO">Two Digit (last 2 of First)</option>
+            <option value="THREE_FIRST">Three Front (first 3 digits)</option>
+            <option value="THREE_LAST">Three Back (last 3 digits)</option>
+            <option value="NEAR_FIRST">Near First (First ±1)</option>
+            <option value="SECOND">Second Prize (6-digit)</option>
+            <option value="THIRD">Third Prize (6-digit)</option>
+            <option value="FOURTH">Fourth Prize (6-digit)</option>
+            <option value="FIFTH">Fifth Prize (6-digit)</option>
+          </select>
+        </div>
+
+        <!-- Analysis window -->
+        <div class="control-group window-mode-wrap">
+          <span class="control-label">Analysis window</span>
+          <div class="radio-group">
+            <label class="radio-label">
+              <input type="radio" name="winMode" value="lastn" checked>
+              <span>Last N draws</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="winMode" value="all">
+              <span>All time</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="winMode" value="cutoff">
+              <span>Up to date</span>
+            </label>
+          </div>
+          <!-- Last N controls -->
+          <div id="lastnWrap" class="window-inline">
+            <input type="number" id="lastNInput" class="number-input" value="200" min="10" max="9999">
+            <span class="helper-text">draws (≈ 1 draw per 2 weeks)</span>
+          </div>
+          <!-- Cutoff date controls -->
+          <div id="cutoffWrap" class="window-inline" style="display:none;">
+            <input type="date" id="cutoffDate" class="date-input date-input-narrow">
+            <button type="button" id="applyCutoffBtn" class="date-action-btn">Apply</button>
+            <span class="helper-text">include draws up to this date</span>
+          </div>
+        </div>
+
+        <!-- Top N for frequency chart -->
+        <div class="control-group">
+          <label class="control-label" for="topNSelect">Bars in frequency chart</label>
+          <select id="topNSelect" class="select-input">
+            <option value="15">Top 15</option>
+            <option value="20" selected>Top 20</option>
+            <option value="30">Top 30</option>
+            <option value="50">Top 50</option>
+          </select>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Status -->
+    <div class="status-bar">
+      <span id="statusDot" class="status-dot"></span>
+      <span id="statusText">Loading data from cache…</span>
+    </div>
+
+    <!-- 1. Stat cards -->
+    <div id="statCards" class="stat-cards-row"></div>
+
+    <!-- 2. Frequency chart + Digit heatmap -->
+    <div class="insight-two-col">
+      <div class="insight-card">
+        <div class="insight-card-title">Number Frequency</div>
+        <div class="insight-card-subtitle">
+          How many times each number appeared in the selected window. Hover a bar for the exact count and percentage.
+          Percentage = appearances ÷ total draws in window (numbers drawn multiple times per draw inflate this above 100% for high-volume prizes).
+        </div>
+        <div class="chart-wrap" style="height:400px;">
+          <canvas id="freqCanvas"></canvas>
+        </div>
+      </div>
+      <div class="insight-card">
+        <div class="insight-card-title">Digit Position Heatmap</div>
+        <div class="insight-card-subtitle">
+          Each row = a digit (0–9). Each column = a position in the winning number.
+          Darker = that digit appears more often at that position, relative to the other digits in the same column.
+          Hover any cell for exact count and share. Numbers are filtered to the correct digit length for this prize.
+        </div>
+        <div id="heatmapGrid"></div>
+      </div>
+    </div>
+
+    <!-- 3. Hot & Cold -->
+    <div class="insight-two-col">
+      <div class="insight-card">
+        <div class="insight-card-title">🔥 Hot Numbers</div>
+        <div class="insight-card-subtitle" id="hotSubtitle"></div>
+        <div class="section-legend">
+          <span class="legend-dot" style="background:hsl(15,80%,58%)"></span>
+          <span>Bar length = how far above expected rate</span>
+          <span style="color:var(--foreground);font-weight:500;">×2.0 means double the expected frequency</span>
+        </div>
+        <div id="hotList"></div>
+      </div>
+      <div class="insight-card">
+        <div class="insight-card-title">🧊 Cold Numbers</div>
+        <div class="insight-card-subtitle" id="coldSubtitle"></div>
+        <div class="section-legend">
+          <span class="legend-dot" style="background:hsl(200,70%,55%)"></span>
+          <span>Bar length = how far below expected rate</span>
+          <span style="color:var(--foreground);font-weight:500;">×0.0 means not seen at all recently</span>
+        </div>
+        <div id="coldList"></div>
+      </div>
+    </div>
+
+    <!-- 4. Overdue tracker -->
+    <div class="insight-card insights-section">
+      <div class="insight-card-title">Overdue Tracker</div>
+      <div class="insight-card-subtitle">
+        The <strong>bar</strong> shows how many draws have passed since a number was last seen.
+        The <strong>vertical line</strong> marks that number's own historical average gap between appearances.
+        A bar extending past the line means the number hasn't shown up for longer than it normally would.
+        Only numbers with 2+ appearances are shown (need history to compute an average gap).
+        Hover a row for full stats.
+      </div>
+      <div class="section-legend">
+        <span class="legend-dot" style="background:hsl(15,80%,58%);opacity:0.75;"></span><span>Overdue (past its own average gap)</span>
+        <span class="legend-dot" style="background:hsl(215,75%,60%);opacity:0.75;"></span><span>Within expected range</span>
+        <span style="display:inline-block;width:12px;height:3px;background:var(--foreground);opacity:0.4;vertical-align:middle;"></span><span>Avg gap marker</span>
+      </div>
+      <div id="overdueList"></div>
+    </div>
+
+    <!-- 5. Gap analysis table -->
+    <div class="insight-card insights-section">
+      <div class="insight-card-title">Draw Gap Analysis</div>
+      <div class="insight-card-subtitle">
+        Top 20 most frequent numbers with their gap statistics — how many draws typically pass between consecutive appearances.
+        <strong>Avg gap</strong>: mean draws between appearances. <strong>Min/Max gap</strong>: shortest and longest observed streak without appearing.
+        <strong>Draws since last seen</strong>: turns orange when it exceeds the number's own average gap.
+      </div>
+      <div id="gapTableWrap"></div>
+    </div>
+
+    <!-- 6. Rolling frequency trend -->
+    <div class="insight-card insights-section">
+      <div class="insight-card-title">Rolling Frequency Trend</div>
+      <div class="insight-card-subtitle" id="rollingSubtitle"></div>
+      <!-- Controls row -->
+      <div style="display:flex;flex-wrap:wrap;gap:1.5rem;margin-bottom:1rem;align-items:flex-start;">
+        <div class="control-group" style="flex:1;min-width:200px;">
+          <label class="control-label" for="rollingSlider">Rolling window size</label>
+          <div class="range-wrap">
+            <input type="range" id="rollingSlider" min="5" max="60" value="20" step="1">
+            <span class="range-val"><span id="rollingValLabel">20</span> draws</span>
+          </div>
+          <span class="helper-text">Draws summed per data point. Larger = smoother, smaller = more reactive.</span>
+        </div>
+        <div class="control-group">
+          <label class="control-label" for="rollingSeriesSelect">Numbers to show</label>
+          <select id="rollingSeriesSelect" class="select-input">
+            <option value="1">Top 1</option>
+            <option value="2">Top 2</option>
+            <option value="3">Top 3</option>
+            <option value="4">Top 4</option>
+            <option value="5" selected>Top 5</option>
+            <option value="7">Top 7</option>
+            <option value="10">Top 10</option>
+          </select>
+          <span class="helper-text">Top N most frequent numbers in the window</span>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height:280px;">
+        <canvas id="rollingCanvas"></canvas>
+      </div>
+    </div>
+
+    <!-- 7. Statistical candidates -->
+    <div class="insight-card insights-section" style="border-left: 3px solid var(--primary);">
+      <div class="insight-card-title">Statistical Candidates</div>
+      <div class="insight-card-subtitle">
+        Numbers that are most overdue relative to their own historical average gap — they've gone the longest
+        past when they would normally reappear, based purely on their own track record in this dataset.
+        A number with an avg gap of 10 draws that hasn't appeared in 25 draws is +150% overdue.
+      </div>
+      <div id="candidatesList"></div>
+      <div class="disclaimer">
+        ⚠️ <strong>Statistical observation only.</strong> The Thai lottery is independently drawn each time — past patterns do not guarantee future results. "Overdue" is a statistical measure, not a prediction. Each draw is an independent random event.
+      </div>
+    </div>
+
+    <div style="height: 3rem;"></div>
+
+  </main>
+
+  <script src="insights.js"></script>
+</body>
+</html>

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Draw Results – Thai Lotto Analyzer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* ── OSINT Draw Results – local overrides only ─────────────────────── */
+    .header-title { font-size: 1.75rem; font-weight: 600; letter-spacing: -0.025em; }
+    .header-subtitle { font-size: 0.875rem; color: var(--muted-foreground); margin-top: 0.25rem; }
+
+    /* Search bar */
+    .search-input {
+      padding: 0.375rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) * 0.75);
+      background: var(--background);
+      color: var(--foreground);
+      font-size: 0.875rem;
+      font-family: 'JetBrains Mono', monospace;
+      width: 14rem;
+    }
+    .search-input:focus { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+    .select-input {
+      padding: 0.375rem 0.5rem;
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) * 0.75);
+      background: var(--background);
+      color: var(--foreground);
+      font-size: 0.875rem;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .select-input:focus { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+    /* Status bar */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.75rem;
+      color: var(--muted-foreground);
+      padding: 0.5rem 0;
+      flex-wrap: wrap;
+    }
+    .status-dot {
+      width: 0.5rem; height: 0.5rem;
+      border-radius: 50%;
+      background: var(--muted-foreground);
+      flex-shrink: 0;
+    }
+    .status-dot.live { background: #22c55e; box-shadow: 0 0 0 2px #22c55e33; }
+
+    /* Draw cards */
+    #drawList { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+
+    .draw-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      transition: border-color 0.15s;
+    }
+    .draw-card.has-match { border-color: var(--primary); }
+
+    .draw-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.625rem 1rem;
+      background: var(--background);
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      user-select: none;
+    }
+    .draw-card-header:hover { background: var(--card); }
+
+    .draw-date {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.875rem;
+      font-weight: 500;
+      letter-spacing: 0.03em;
+    }
+    .draw-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.75rem;
+      color: var(--muted-foreground);
+    }
+    .draw-first-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      font-size: 1rem;
+      color: var(--primary);
+      letter-spacing: 0.05em;
+    }
+    .chevron {
+      font-size: 0.625rem;
+      color: var(--muted-foreground);
+      transition: transform 0.2s;
+    }
+    .draw-card.expanded .chevron { transform: rotate(180deg); }
+
+    .draw-card-body {
+      display: none;
+      padding: 0.875rem 1rem;
+    }
+    .draw-card.expanded .draw-card-body { display: block; }
+
+    /* Prize grid inside card */
+    .prize-rows { display: flex; flex-direction: column; gap: 0.375rem; }
+
+    .prize-row {
+      display: grid;
+      grid-template-columns: 7rem 1fr;
+      gap: 0.5rem;
+      align-items: flex-start;
+      padding: 0.25rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .prize-row:last-child { border-bottom: none; }
+
+    .prize-label {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted-foreground);
+      padding-top: 0.125rem;
+      white-space: nowrap;
+    }
+
+    .prize-numbers { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+
+    .num-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      padding: 0.125rem 0.375rem;
+      border-radius: 0.25rem;
+      background: var(--background);
+      border: 1px solid var(--border);
+      white-space: nowrap;
+      letter-spacing: 0.04em;
+    }
+
+    /* Highlight when matched */
+    .num-badge.match {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+    .dark .num-badge.match { color: #fff; }
+
+    .num-badge.first-prize {
+      background: hsl(215, 85%, 50%);
+      border-color: hsl(215, 85%, 50%);
+      color: #fff;
+      font-size: 0.9375rem;
+      padding: 0.25rem 0.625rem;
+    }
+    .dark .num-badge.first-prize { background: hsl(215, 80%, 60%); border-color: hsl(215, 80%, 60%); }
+
+    /* Empty / no-cache state */
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--muted-foreground);
+    }
+    .empty-state h2 { font-size: 1.25rem; font-weight: 600; color: var(--foreground); margin-bottom: 0.75rem; }
+    .empty-state p { font-size: 0.875rem; line-height: 1.7; }
+
+    /* Match count badge */
+    .match-count {
+      display: inline-block;
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      padding: 0.0625rem 0.375rem;
+      border-radius: 0.75rem;
+      margin-left: 0.375rem;
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-content" style="max-width:1400px;margin:0 auto;padding:0 1.5rem;">
+      <div>
+        <h1 class="header-title">Thai Lotto Analyzer</h1>
+        <p class="header-subtitle">Draw Results</p>
+      </div>
+      <div style="display:flex;gap:1rem;align-items:center;">
+        <a href="index.html" class="csv-btn">← Analyzer</a>
+        <a href="csv.html" class="csv-btn">CSV</a>
+        <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
+          <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Controls -->
+    <div class="control-panel" style="margin-top:2rem;">
+      <div class="controls-grid">
+
+        <div class="control-group">
+          <label class="control-label" for="searchInput">Search number</label>
+          <input id="searchInput" class="search-input" type="text" placeholder="e.g. 837706" maxlength="8" autocomplete="off">
+          <span class="helper-text">Highlight any number across all draws</span>
+        </div>
+
+        <div class="control-group">
+          <label class="control-label" for="limitSelect">Show draws</label>
+          <select id="limitSelect" class="select-input">
+            <option value="10">Last 10</option>
+            <option value="20">Last 20</option>
+            <option value="50" selected>Last 50</option>
+            <option value="100">Last 100</option>
+            <option value="0">All</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <label class="control-label" for="prizeFilterSelect">Prize filter</label>
+          <select id="prizeFilterSelect" class="select-input">
+            <option value="">All prizes</option>
+            <option value="FIRST">FIRST</option>
+            <option value="TWO">TWO</option>
+            <option value="THREE_FIRST">THREE FIRST</option>
+            <option value="THREE_LAST">THREE LAST</option>
+            <option value="NEAR_FIRST">NEAR FIRST</option>
+            <option value="SECOND">SECOND</option>
+            <option value="THIRD">THIRD</option>
+            <option value="FOURTH">FOURTH</option>
+            <option value="FIFTH">FIFTH</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">Expand</label>
+          <div style="display:flex;gap:0.5rem;">
+            <button type="button" id="expandAllBtn" class="date-action-btn">Expand all</button>
+            <button type="button" id="collapseAllBtn" class="date-action-btn">Collapse all</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Status bar -->
+    <div class="status-bar">
+      <span id="statusDot" class="status-dot"></span>
+      <span id="statusText">Loading data from cache…</span>
+      <span id="matchInfo" style="display:none;">
+        Matches in <strong id="matchDrawCount">0</strong> draw(s)
+        across <strong id="matchNumCount">0</strong> position(s)
+      </span>
+    </div>
+
+    <!-- Draw list -->
+    <div id="drawList"></div>
+
+  </main>
+
+  <script src="results.js"></script>
+</body>
+</html>
