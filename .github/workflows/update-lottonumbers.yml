@@ -2,7 +2,7 @@ name: Update Lotto Folder
 
 on:
   schedule:
-    - cron: '0 0 3,18 * *'  # 00:00 UTC on the 2nd and 17th
+    - cron: '0 0 1,2,3,15,16,17,18,19,30 * *'  # 00:00 UTC on the 1st, 2nd, 3rd, 15th, 16th, 17th
   workflow_dispatch:
 
 permissions:
