@@ -134,8 +134,14 @@
 
   <main class="container" id="mainContent">
 
+    <div class="panel-sticky-wrap">
+      <button class="panel-collapse-btn is-open" id="insPanelBtn" type="button">
+        <span class="pcb-left"><span>⚙︎ Controls</span><span class="pcb-summary" id="insPanelSum"></span></span>
+        <span class="pcb-chevron"></span>
+      </button>
+      <div class="panel-collapsible" id="insPanelBody">
     <!-- Controls -->
-    <div class="control-panel" style="margin-top:2rem;">
+    <div class="control-panel">
       <div class="controls-grid">
 
         <!-- Prize -->
@@ -204,6 +210,9 @@
 
       </div>
     </div>
+
+      </div><!-- /panel-collapsible -->
+    </div><!-- /panel-sticky-wrap -->
 
     <!-- Status -->
     <div class="status-bar">
@@ -342,5 +351,38 @@
   </main>
 
   <script src="insights.js"></script>
+  <script>
+  (function () {
+    var page = location.pathname.split('/').pop() || 'index.html';
+    document.querySelectorAll('.csv-btn').forEach(function (el) {
+      var href = (el.getAttribute('href') || '').split('/').pop();
+      if (href === page || (page === '' && href === 'index.html')) {
+        el.classList.add('nav-active');
+      }
+    });
+  })();
+  </script>
+  <script>
+  (function () {
+    var btn = document.getElementById('insPanelBtn');
+    var body = document.getElementById('insPanelBody');
+    var sumEl = document.getElementById('insPanelSum');
+    if (!btn || !body) return;
+    function getSummary() { return ((document.getElementById('prizeSelect')||{value:''}).value + ' · ' + (document.querySelector('input[name=winMode]:checked')||{value:''}).value); }
+    function updateSummary() {
+      if (!sumEl) return;
+      sumEl.textContent = btn.classList.contains('is-open') ? '' : (' · ' + getSummary());
+    }
+    btn.addEventListener('click', function () {
+      var opening = !btn.classList.contains('is-open');
+      btn.classList.toggle('is-open');
+      if (opening) { body.style.maxHeight = '2000px'; body.classList.remove('is-closed'); }
+      else { body.style.maxHeight = body.scrollHeight + 'px'; requestAnimationFrame(function () { body.classList.add('is-closed'); }); }
+      updateSummary();
+    });
+    document.addEventListener('change', updateSummary);
+    updateSummary();
+  })();
+  </script>
 </body>
 </html>
