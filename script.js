@@ -3,32 +3,6 @@ const PRIZE_LIST = ['FIRST','SECOND','THIRD','FOURTH','FIFTH','TWO','THREE_FIRST
 const FIXED_START = new Date('2006-12-30T00:00');
 const DRAW_DAYS = [30,31,1,2,3,14,15,16,17];
 
-// Human-readable prize names for tabs and headers
-const PRIZE_LABELS = {
-  FIRST:       'First Prize',
-  SECOND:      'Second Prize',
-  THIRD:       'Third Prize',
-  FOURTH:      'Fourth Prize',
-  FIFTH:       'Fifth Prize',
-  TWO:         'Two Digit',
-  THREE_FIRST: 'Three Front',
-  THREE_LAST:  'Three Back',
-  NEAR_FIRST:  'Near First',
-};
-
-// Prize descriptions shown in the section header
-const PRIZE_DESC = {
-  FIRST:       '6-digit jackpot · 1 number per draw',
-  SECOND:      '6-digit · 5 numbers per draw',
-  THIRD:       '6-digit · 10 numbers per draw',
-  FOURTH:      '6-digit · 50 numbers per draw',
-  FIFTH:       '6-digit · 100 numbers per draw',
-  TWO:         'Last 2 digits of First prize (00–99)',
-  THREE_FIRST: 'First 3 digits · 2 numbers per draw',
-  THREE_LAST:  'Last 3 digits · 2 numbers per draw',
-  NEAR_FIRST:  'First prize ±1 · 2 adjacent numbers',
-};
-
 // DOM Elements
 const topNInput = document.getElementById('topN');
 const yearsInput = document.getElementById('yearsBack');
@@ -52,7 +26,6 @@ const loadingEl = document.getElementById('loading');
 const prizeTabsEl = document.getElementById('prizeTabs');
 const prizeTabContent = document.getElementById('prizeTabContent');
 const themeToggle = document.getElementById('themeToggle');
-const drawWindowInfo = document.getElementById('drawWindowInfo');
 
 // State
 let counts = {}, digitCounts = {};
@@ -212,7 +185,7 @@ function createParserWorker() {
         const nums = parts.slice(1).filter(Boolean);
         if (!prizesAgg[tag]) return;
         const len = tag==='TWO' ? 2 : tag.startsWith('THREE') ? 3 : 6;
-        const lastVals = nums.map(n => n.slice(-len));
+        const lastVals = nums.map(n => n.slice(-len)).filter(val => val.length === len);
         results[tag] = lastVals.join(', ');
         lastVals.forEach(val=>{
           if (!val) return;
@@ -331,20 +304,6 @@ function renderTables() {
   const selected = getSelectedPrizesFromTabState();
   if (!selected.length) return;
 
-  // Update draw window summary in header
-  if (drawWindowInfo) {
-    const drawCount = selectedDates.size;
-    const sorted = Array.from(selectedDates).sort();
-    const from = sorted[0] || '';
-    const to = sorted[sorted.length - 1] || '';
-    if (drawCount > 0) {
-      drawWindowInfo.innerHTML = `Showing <strong>${drawCount} draw${drawCount !== 1 ? 's' : ''}</strong> in window${from && to ? ` · ${from} → ${to}` : ''}`;
-      drawWindowInfo.classList.add('show');
-    } else {
-      drawWindowInfo.classList.remove('show');
-    }
-  }
-
   const fragment = document.createDocumentFragment();
 
   selected.forEach(prize=>{
@@ -358,20 +317,14 @@ function renderTables() {
     data.sort((a,b)=> showLeast ? (a[1].count - b[1].count) : (b[1].count - a[1].count));
     const entries = data.slice(0,N).map(([val,info])=>({ val, count: info.count || 0, dates: (info.dates||[]).slice(0,MAX) }));
 
-    // Prize section header: human name + description + draw count in window
-    const headerDiv = document.createElement('div');
-    headerDiv.className = 'prize-header';
-    const label = PRIZE_LABELS[prize] || prize;
-    const desc = PRIZE_DESC[prize] || '';
-    headerDiv.innerHTML = `${label}<span style="font-weight:400;font-size:0.8125rem;color:var(--muted-foreground);margin-left:0.75rem;">${desc}</span><span style="font-weight:400;font-size:0.8125rem;color:var(--muted-foreground);margin-left:0.75rem;">· ${tot} appearances across ${selectedDates.size} draws in window</span>`;
-    fragment.appendChild(headerDiv);
+    fragment.appendChild(el('div', `${prize}: ${tot} drawings`, { class: 'prize-header' }));
 
     const tbl = document.createElement('table');
     const thead = document.createElement('thead');
     const r3 = document.createElement('tr'); 
-    r3.appendChild(el('th','Number')); 
-    r3.appendChild(el('th','Times drawn (% of draws)')); 
-    for (let i=0;i<MAX;i++) r3.appendChild(el('th', i===0 ? 'Most recent draw' : `Prev draw ${i}`)); 
+    r3.appendChild(el('th','Winning no.')); 
+    r3.appendChild(el('th','Count')); 
+    for (let i=0;i<MAX;i++) r3.appendChild(el('th', `Date ${i+1}`)); 
     thead.appendChild(r3);
     tbl.appendChild(thead);
 
@@ -395,23 +348,13 @@ function renderTables() {
     const tablesContainer = document.createElement('div');
     tablesContainer.className = 'tables-container';
 
-    // Digit rank mini-table
+    // mini table (POD/Rank table)
     const pods = digitCounts[prize];
     const mini = document.createElement('table'); mini.className = 'mini-table';
-    const miniHeadRow = document.createElement('tr');
-    miniHeadRow.appendChild(el('th','Rank'));
+    const miniHead = document.createElement('tr'); miniHead.appendChild(el('th','Rank'));
     const ordinals = ['1st', '2nd', '3rd', '4th', '5th', '6th'];
-    pods.forEach((_,i)=> miniHeadRow.appendChild(el('th', `Pos ${i+1}`)));
-    mini.appendChild(miniHeadRow);
-
-    // Caption row explaining what this table is
-    const captionRow = document.createElement('tr');
-    const captionCell = document.createElement('td');
-    captionCell.colSpan = pods.length + 1;
-    captionCell.style.cssText = 'font-size:0.7rem;color:var(--muted-foreground);padding:0.25rem 0.75rem;border-bottom:1px solid var(--border);';
-    captionCell.textContent = `Most common digit at each position in the ${prize === 'TWO' ? '2' : prize.startsWith('THREE') ? '3' : '6'}-digit number`;
-    captionRow.appendChild(captionCell);
-    mini.insertBefore(captionRow, miniHeadRow.nextSibling);
+    pods.forEach((_,i)=> miniHead.appendChild(el('th', `${ordinals[i] || (i+1)+'th'} no.`)));
+    mini.appendChild(miniHead);
 
     const ranks = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th'];
     for (let rankIdx=0; rankIdx<ranks.length; rankIdx++) {
@@ -428,8 +371,9 @@ function renderTables() {
     }
     tablesContainer.appendChild(mini);
 
-    // Recent wins table
+    // Recent wins table - each cell shows one number and date
     const sorted = dateMap.filter(x => selectedDates.has(x.dateStr)).map(x => x.dateStr).sort((a,b) => b.localeCompare(a));
+    // Collect individual winning numbers with their dates
     const individualWins = [];
     for (const dateStr of sorted) {
       if (resultsByDate[dateStr] && resultsByDate[dateStr][prize]) {
@@ -439,34 +383,29 @@ function renderTables() {
           individualWins.push({ date: dateStr, number: num });
         });
       }
-      if (individualWins.length >= 50) break;
+      if (individualWins.length >= 50) break; // Limit total cells
     }
 
     if (individualWins.length > 0) {
       const winsTable = document.createElement('table');
       winsTable.className = 'mini-table recent-wins-table';
-
-      // Header row explaining what this grid is
-      const winsCaption = document.createElement('tr');
-      const winsCaptionCell = document.createElement('td');
-      winsCaptionCell.colSpan = 5;
-      winsCaptionCell.style.cssText = 'font-size:0.7rem;color:var(--muted-foreground);padding:0.25rem 0.5rem;border-bottom:1px solid var(--border);';
-      winsCaptionCell.textContent = 'Recent winning numbers (newest draw first — number above, draw date below)';
-      winsCaption.appendChild(winsCaptionCell);
-      winsTable.appendChild(winsCaption);
       
+      // Create grid: 5 columns
       const cols = 5;
       const rows = Math.ceil(individualWins.length / cols);
       
       for (let row = 0; row < rows; row++) {
         const tr = document.createElement('tr');
+        
         for (let col = 0; col < cols; col++) {
           const idx = row * cols + col;
           const td = document.createElement('td');
+          
           if (idx < individualWins.length) {
             const win = individualWins[idx];
             td.innerHTML = `<span class="win-num">${win.number}</span><span class="win-dt">${win.date}</span>`;
           }
+          
           tr.appendChild(td);
         }
         winsTable.appendChild(tr);
@@ -478,14 +417,14 @@ function renderTables() {
     fragment.appendChild(tablesContainer);
 
     if (mode === 'draws' && ['FIRST','TWO','THREE_FIRST','THREE_LAST'].includes(prize)) {
-      const sortedDates = dateMap.filter(x => selectedDates.has(x.dateStr)).map(x => x.dateStr);
+      const sorted = dateMap.filter(x => selectedDates.has(x.dateStr)).map(x => x.dateStr);
       let infoDates = [];
       const direction = getTimeDirection();
       const isForward = direction === 'forward';
       if (isForward) {
-        if (sortedDates.length >= 3) infoDates = sortedDates.slice(-3).reverse();
+        if (sorted.length >= 3) infoDates = sorted.slice(-3).reverse();
       } else {
-        if (sortedDates.length >= 3) infoDates = sortedDates.slice(0,3);
+        if (sorted.length >= 3) infoDates = sorted.slice(0,3);
       }
       if (infoDates.length) {
         const infoDiv = document.createElement('div');
@@ -651,11 +590,10 @@ async function progressiveFetchAndProcess({ concurrency = 30, recentLimit = 150 
 
 function buildTabs() {
   prizeTabsEl.innerHTML = '';
-  const allTab = el('button', 'All prizes', { class: 'tab', 'data-prize': 'all', type: 'button' });
+  const allTab = el('button', 'All', { class: 'tab', 'data-prize': 'all', type: 'button' });
   prizeTabsEl.appendChild(allTab);
   PRIZE_LIST.forEach(p => {
-    const label = PRIZE_LABELS[p] || p.replace(/_/g,' ');
-    const b = el('button', label, { class: 'tab', 'data-prize': p, type: 'button' });
+    const b = el('button', p.replace(/_/g,' '), { class: 'tab', 'data-prize': p, type: 'button' });
     prizeTabsEl.appendChild(b);
   });
   const multi = el('button', 'Multiple', { class: 'tab', 'data-prize': 'multi', type: 'button' });
@@ -703,7 +641,7 @@ function renderMultiCheckboxes() {
     cb.type = 'checkbox'; cb.name = 'prize'; cb.value = p; cb.checked = true;
     label.appendChild(cb);
     const span = document.createElement('span');
-    span.textContent = ' ' + (PRIZE_LABELS[p] || p.replace(/_/g,' '));
+    span.textContent = ' ' + p.replace(/_/g,' ');
     label.appendChild(span);
     grid.appendChild(label);
   });
