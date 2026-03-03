@@ -38,7 +38,11 @@ const lastnWrap      = document.getElementById('lastnWrap');
 const lastNInput     = document.getElementById('lastNInput');
 const cutoffWrap     = document.getElementById('cutoffWrap');
 const cutoffDate     = document.getElementById('cutoffDate');
-const applyCutoffBtn = document.getElementById('applyCutoffBtn');
+const applyCutoffBtn     = document.getElementById('applyCutoffBtn');
+const lastnCutoffWrap    = document.getElementById('lastnCutoffWrap');
+const lastNInput2        = document.getElementById('lastNInput2');
+const cutoffDate2        = document.getElementById('cutoffDate2');
+const applyCutoffBtn2    = document.getElementById('applyCutoffBtn2');
 const rollingSlider       = document.getElementById('rollingSlider');
 const rollingValLabel     = document.getElementById('rollingValLabel');
 const rollingSeriesSelect = document.getElementById('rollingSeriesSelect');
@@ -47,7 +51,7 @@ const rollingSeriesSelect = document.getElementById('rollingSeriesSelect');
 let freqChart     = null;
 let rollingChart  = null;
 let allDraws      = [];      // [{dateStr, results}] sorted oldest → newest
-let currentPrize  = 'FIRST';
+let currentPrize  = 'TWO';
 let currentTopN   = 20;
 let rollingWindow = 20;
 let rollingSeries = 5;
@@ -141,8 +145,9 @@ function wireControls() {
 
   winModeRadios.forEach(r => r.addEventListener('change', () => {
     winMode = r.value;
-    lastnWrap.style.display  = winMode === 'lastn'  ? 'flex' : 'none';
-    cutoffWrap.style.display = winMode === 'cutoff' ? 'flex' : 'none';
+    lastnWrap.style.display      = winMode === 'lastn'        ? 'flex' : 'none';
+    cutoffWrap.style.display     = winMode === 'cutoff'       ? 'flex' : 'none';
+    lastnCutoffWrap.style.display = winMode === 'lastn_cutoff' ? 'flex' : 'none';
     renderAll();
   }));
 
@@ -155,6 +160,18 @@ function wireControls() {
   applyCutoffBtn.addEventListener('click', () => {
     cutoff = cutoffDate.value || null;
     if (winMode === 'cutoff') renderAll();
+  });
+
+  applyCutoffBtn2.addEventListener('click', () => {
+    lastN  = Math.max(10, parseInt(lastNInput2.value, 10) || 200);
+    cutoff = cutoffDate2.value || null;
+    lastNInput2.value = lastN;
+    if (winMode === 'lastn_cutoff') renderAll();
+  });
+
+  lastNInput2.addEventListener('change', () => {
+    lastN = Math.max(10, parseInt(lastNInput2.value, 10) || 200);
+    lastNInput2.value = lastN;
   });
 
   rollingSlider.addEventListener('input', () => {
@@ -172,13 +189,13 @@ function wireControls() {
 function getWindowedDraws() {
   let draws = allDraws.slice();
 
-  // Apply cutoff date first (keep draws up to and including the cutoff date)
-  if (winMode === 'cutoff' && cutoff) {
+  // Apply cutoff date filter (modes: cutoff and lastn_cutoff)
+  if ((winMode === 'cutoff' || winMode === 'lastn_cutoff') && cutoff) {
     draws = draws.filter(d => d.dateStr <= cutoff);
   }
 
-  // Then trim to last N
-  if (winMode === 'lastn') {
+  // Trim to last N draws (modes: lastn and lastn_cutoff)
+  if (winMode === 'lastn' || winMode === 'lastn_cutoff') {
     const n = Math.max(10, lastN);
     if (n < draws.length) draws = draws.slice(-n);
   }
