@@ -497,3 +497,91 @@ tbody tr:hover {
 table td:nth-child(2) {
   font-variant-numeric: tabular-nums;
 }
+
+/* ═══════════════════════════════════════════════════════
+   Nav buttons + active-page highlight + collapsible panel
+   ═══════════════════════════════════════════════════════ */
+
+.csv-btn {
+  display: inline-flex; align-items: center;
+  padding: 0.375rem 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: 0.8125rem; font-weight: 500; font-family: inherit;
+  text-decoration: none; white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  cursor: pointer;
+  line-height: 1;
+}
+.csv-btn:hover {
+  border-color: var(--primary);
+  background: var(--background);
+  color: var(--primary);
+}
+.csv-btn.nav-active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
+  pointer-events: none;
+}
+.dark .csv-btn.nav-active { color: #fff; }
+
+/* ── Sticky collapsible panel ──────────────────────────── */
+.panel-sticky-wrap {
+  position: sticky; top: 0; z-index: 100;
+  margin-top: 1rem;
+}
+.panel-collapse-btn {
+  width: 100%; display: flex; align-items: center;
+  justify-content: space-between; gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow-sm);
+  font-family: inherit; font-size: 0.8125rem; font-weight: 600;
+  color: var(--foreground); cursor: pointer; text-align: left;
+  transition: border-color 0.15s;
+}
+.panel-collapse-btn:hover { border-color: var(--primary); }
+.pcb-left {
+  display: flex; align-items: center; gap: 0.5rem;
+  min-width: 0; overflow: hidden;
+}
+.pcb-summary {
+  font-weight: 400; font-size: 0.75rem;
+  color: var(--muted-foreground);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pcb-chevron {
+  display: inline-block; width: 0.5rem; height: 0.5rem;
+  border-right: 2px solid var(--muted-foreground);
+  border-bottom: 2px solid var(--muted-foreground);
+  transform: rotate(45deg); margin-bottom: 3px;
+  transition: transform 0.2s; flex-shrink: 0;
+}
+.panel-collapse-btn.is-open .pcb-chevron {
+  transform: rotate(-135deg); margin-bottom: -1px;
+}
+.panel-collapse-btn.is-open {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-color: transparent;
+}
+.panel-collapsible {
+  overflow: hidden;
+  transition: max-height 0.25s ease, opacity 0.2s;
+  max-height: 2000px; opacity: 1;
+}
+.panel-collapsible.is-closed {
+  max-height: 0 !important; opacity: 0; pointer-events: none;
+}
+.panel-collapsible > .control-panel:first-child {
+  margin-top: 0 !important; border-top: none !important;
+  border-top-left-radius: 0 !important; border-top-right-radius: 0 !important;
+}
+.panel-collapsible > .control-panel + .control-panel {
+  margin-top: 0 !important; border-top: none !important;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
