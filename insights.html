@@ -142,13 +142,9 @@
         <div class="control-group">
           <label class="control-label" for="prizeSelect">Prize category</label>
           <select id="prizeSelect" class="select-input">
-            <option value="FIRST">First Prize (6-digit jackpot)</option>
-            <option value="TWO">Two Digit (last 2 of First)</option>
-            <option value="THREE_FIRST">Three Front (first 3 digits)</option>
-            <option value="THREE_LAST">Three Back (last 3 digits)</option>
-            <option value="NEAR_FIRST">Near First (First ±1)</option>
-            <option value="SECOND">Second Prize (6-digit)</option>
-            <option value="THIRD">Third Prize (6-digit)</option>
+            <option value="TWO">Two Digit (2-digit, independently drawn)</option>
+            <option value="THREE_FIRST">Three Front (3-digit, independently drawn)</option>
+            <option value="THREE_LAST">Three Back (3-digit, independently drawn)</option>
             <option value="FOURTH">Fourth Prize (6-digit)</option>
             <option value="FIFTH">Fifth Prize (6-digit)</option>
           </select>
@@ -170,6 +166,10 @@
               <input type="radio" name="winMode" value="cutoff">
               <span>Up to date</span>
             </label>
+            <label class="radio-label">
+              <input type="radio" name="winMode" value="lastn_cutoff">
+              <span>Last N up to date</span>
+            </label>
           </div>
           <!-- Last N controls -->
           <div id="lastnWrap" class="window-inline">
@@ -180,7 +180,14 @@
           <div id="cutoffWrap" class="window-inline" style="display:none;">
             <input type="date" id="cutoffDate" class="date-input date-input-narrow">
             <button type="button" id="applyCutoffBtn" class="date-action-btn">Apply</button>
-            <span class="helper-text">include draws up to this date</span>
+            <span class="helper-text">all draws up to this date</span>
+          </div>
+          <!-- Last N up to date controls -->
+          <div id="lastnCutoffWrap" class="window-inline" style="display:none;">
+            <input type="number" id="lastNInput2" class="number-input" value="200" min="10" max="9999">
+            <span class="helper-text">draws before</span>
+            <input type="date" id="cutoffDate2" class="date-input date-input-narrow">
+            <button type="button" id="applyCutoffBtn2" class="date-action-btn">Apply</button>
           </div>
         </div>
 
@@ -224,7 +231,7 @@
         <div class="insight-card-subtitle">
           Each row = a digit (0–9). Each column = a position in the winning number.
           Darker = that digit appears more often at that position, relative to the other digits in the same column.
-          Hover any cell for exact count and share. Numbers are filtered to the correct digit length for this prize.
+          Hover any cell for exact count and share. Numbers are filtered to the exact digit length for this prize — malformed entries are excluded.
         </div>
         <div id="heatmapGrid"></div>
       </div>
