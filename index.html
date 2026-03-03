@@ -143,8 +143,14 @@
       </div>
     </details>
 
+    <div class="panel-sticky-wrap">
+      <button class="panel-collapse-btn is-open" id="idxPanelBtn" type="button">
+        <span class="pcb-left"><span>⚙︎ Controls</span><span class="pcb-summary" id="idxPanelSum"></span></span>
+        <span class="pcb-chevron"></span>
+      </button>
+      <div class="panel-collapsible" id="idxPanelBody">
     <!-- Display options -->
-    <div class="control-panel" style="margin-top:1rem;">
+    <div class="control-panel">
       <div class="controls-grid">
         <div class="checkbox-group">
           <label class="checkbox-label">
@@ -170,8 +176,8 @@
       </div>
     </div>
 
-    <!-- Time window (sticky) -->
-    <div class="control-panel control-panel-sticky">
+    <!-- Time window -->
+    <div class="control-panel">
       <div class="controls-grid">
         <div class="control-group">
           <span class="control-label">Analysis window</span>
@@ -238,6 +244,9 @@
       </div>
     </div>
 
+      </div><!-- /panel-collapsible -->
+    </div><!-- /panel-sticky-wrap -->
+
     <label class="section-label">Prize category</label>
     <div class="tabs" role="tablist" id="prizeTabs"></div>
     <div class="tab-content" id="prizeTabContent"></div>
@@ -246,5 +255,38 @@
   </main>
 
   <script type="module" src="script.js"></script>
+  <script>
+  (function () {
+    var page = location.pathname.split('/').pop() || 'index.html';
+    document.querySelectorAll('.csv-btn').forEach(function (el) {
+      var href = (el.getAttribute('href') || '').split('/').pop();
+      if (href === page || (page === '' && href === 'index.html')) {
+        el.classList.add('nav-active');
+      }
+    });
+  })();
+  </script>
+  <script>
+  (function () {
+    var btn = document.getElementById('idxPanelBtn');
+    var body = document.getElementById('idxPanelBody');
+    var sumEl = document.getElementById('idxPanelSum');
+    if (!btn || !body) return;
+    function getSummary() { return ((document.querySelector('input[name=timeMode]:checked')||{value:''}).value + ' · top ' + ((document.getElementById('topN')||{value:'10'}).value)); }
+    function updateSummary() {
+      if (!sumEl) return;
+      sumEl.textContent = btn.classList.contains('is-open') ? '' : (' · ' + getSummary());
+    }
+    btn.addEventListener('click', function () {
+      var opening = !btn.classList.contains('is-open');
+      btn.classList.toggle('is-open');
+      if (opening) { body.style.maxHeight = '2000px'; body.classList.remove('is-closed'); }
+      else { body.style.maxHeight = body.scrollHeight + 'px'; requestAnimationFrame(function () { body.classList.add('is-closed'); }); }
+      updateSummary();
+    });
+    document.addEventListener('change', updateSummary);
+    updateSummary();
+  })();
+  </script>
 </body>
 </html>
