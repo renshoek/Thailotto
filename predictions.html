@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -9,135 +10,179 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <style>
-    /* ── Predictions-page local styles ───────────────────────────── */
-    .select-input {
-      padding: .375rem .625rem; border: 1px solid var(--border);
-      border-radius: calc(var(--radius)*.75); background: var(--background);
-      color: var(--foreground); font-size: .875rem; font-family: inherit; cursor: pointer;
+    /* ── Nav button styles (self-contained — works if styles.css lacks these) ── */
+    .csv-btn {
+      display:inline-flex; align-items:center;
+      padding:.375rem .875rem; border:1px solid var(--border);
+      border-radius:var(--radius); background:var(--card);
+      color:var(--muted-foreground); font-size:.8125rem; font-weight:500;
+      font-family:inherit; text-decoration:none; white-space:nowrap;
+      transition:border-color .15s,background .15s,color .15s;
+      cursor:pointer; line-height:1;
     }
-    .select-input:focus { outline: 2px solid var(--primary); outline-offset: 2px; }
+    .csv-btn:hover { border-color:var(--primary); background:var(--background); color:var(--primary); }
+    .csv-btn.nav-active { border-color:var(--primary); background:var(--primary); color:#fff; font-weight:600; pointer-events:none; }
+    .dark .csv-btn.nav-active { color:#fff; }
 
-    .status-bar { display:flex; align-items:center; gap:.75rem; font-size:.75rem; color:var(--muted-foreground); padding:.5rem 0; flex-wrap:wrap; margin-top:.75rem; }
-    .status-dot { width:.5rem; height:.5rem; border-radius:50%; background:var(--muted-foreground); flex-shrink:0; }
-    .status-dot.live { background:#22c55e; box-shadow:0 0 0 3px #22c55e22; }
+```
+/* ── Sticky collapsible panel ─────────────────────────────────── */
+.panel-sticky-wrap { position:sticky; top:0; z-index:100; margin-top:1rem; }
+.panel-collapse-btn {
+  width:100%; display:flex; align-items:center; justify-content:space-between; gap:.75rem;
+  padding:.5rem 1rem; background:var(--card); border:1px solid var(--border);
+  border-radius:var(--radius); box-shadow:var(--shadow-sm);
+  font-family:inherit; font-size:.8125rem; font-weight:600;
+  color:var(--foreground); cursor:pointer; text-align:left; transition:border-color .15s;
+}
+.panel-collapse-btn:hover { border-color:var(--primary); }
+.pcb-left { display:flex; align-items:center; gap:.5rem; min-width:0; overflow:hidden; }
+.pcb-summary { font-weight:400; font-size:.75rem; color:var(--muted-foreground); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pcb-chevron { display:inline-block; width:.5rem; height:.5rem; border-right:2px solid var(--muted-foreground); border-bottom:2px solid var(--muted-foreground); transform:rotate(45deg); margin-bottom:3px; transition:transform .2s; flex-shrink:0; }
+.panel-collapse-btn.is-open .pcb-chevron { transform:rotate(-135deg); margin-bottom:-1px; }
+.panel-collapse-btn.is-open { border-bottom-left-radius:0; border-bottom-right-radius:0; border-bottom-color:transparent; }
+.panel-collapsible { overflow:hidden; transition:max-height .25s ease,opacity .2s; max-height:2000px; opacity:1; }
+.panel-collapsible.is-closed { max-height:0 !important; opacity:0; pointer-events:none; }
+.panel-collapsible > .control-panel:first-child { margin-top:0 !important; border-top:none !important; border-top-left-radius:0 !important; border-top-right-radius:0 !important; }
 
-    /* Stat cards */
-    .stat-cards-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:1rem; margin-top:1.25rem; }
-    .stat-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:1rem 1.25rem; box-shadow:var(--shadow-sm); }
-    .stat-card-label { font-size:.6875rem; color:var(--muted-foreground); font-weight:600; text-transform:uppercase; letter-spacing:.07em; }
-    .stat-card-value { font-size:1.875rem; font-weight:700; letter-spacing:-.03em; margin-top:.25rem; font-variant-numeric:tabular-nums; }
-    .stat-card-sub { font-size:.7rem; color:var(--muted-foreground); margin-top:.125rem; line-height:1.4; }
+/* ── Predictions-page local styles ───────────────────────────── */
+.select-input {
+  padding: .375rem .625rem; border: 1px solid var(--border);
+  border-radius: calc(var(--radius)*.75); background: var(--background);
+  color: var(--foreground); font-size: .875rem; font-family: inherit; cursor: pointer;
+}
+.select-input:focus { outline: 2px solid var(--primary); outline-offset: 2px; }
 
-    /* Section card */
-    .pred-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem 1.5rem; box-shadow:var(--shadow-sm); margin-top:1.25rem; }
-    .pred-card-title { font-size:.9375rem; font-weight:600; margin-bottom:.25rem; }
-    .pred-card-sub { font-size:.75rem; color:var(--muted-foreground); margin-bottom:1rem; line-height:1.65; }
-    .two-col { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-top:1.25rem; }
-    @media (max-width:860px) { .two-col { grid-template-columns:1fr; } }
+.status-bar { display:flex; align-items:center; gap:.75rem; font-size:.75rem; color:var(--muted-foreground); padding:.5rem 0; flex-wrap:wrap; margin-top:.75rem; }
+.status-dot { width:.5rem; height:.5rem; border-radius:50%; background:var(--muted-foreground); flex-shrink:0; }
+.status-dot.live { background:#22c55e; box-shadow:0 0 0 3px #22c55e22; }
 
-    .header-title { font-size:1.75rem; font-weight:600; letter-spacing:-.025em; }
-    .header-subtitle { font-size:.875rem; color:var(--muted-foreground); margin-top:.25rem; }
+/* Stat cards */
+.stat-cards-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:1rem; margin-top:1.25rem; }
+.stat-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:1rem 1.25rem; box-shadow:var(--shadow-sm); }
+.stat-card-label { font-size:.6875rem; color:var(--muted-foreground); font-weight:600; text-transform:uppercase; letter-spacing:.07em; }
+.stat-card-value { font-size:1.875rem; font-weight:700; letter-spacing:-.03em; margin-top:.25rem; font-variant-numeric:tabular-nums; }
+.stat-card-sub { font-size:.7rem; color:var(--muted-foreground); margin-top:.125rem; line-height:1.4; }
 
-    .range-wrap { display:flex; align-items:center; gap:.75rem; }
-    .range-wrap input[type=range] { flex:1; accent-color:var(--primary); cursor:pointer; }
-    .range-val { font-family:'JetBrains Mono',monospace; font-size:.8125rem; font-weight:600; min-width:3.5rem; text-align:right; }
+/* Section card */
+.pred-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem 1.5rem; box-shadow:var(--shadow-sm); margin-top:1.25rem; }
+.pred-card-title { font-size:.9375rem; font-weight:600; margin-bottom:.25rem; }
+.pred-card-sub { font-size:.75rem; color:var(--muted-foreground); margin-bottom:1rem; line-height:1.65; }
+.two-col { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-top:1.25rem; }
+@media (max-width:860px) { .two-col { grid-template-columns:1fr; } }
 
-    /* Legend row */
-    .legend-row { display:flex; align-items:center; gap:1rem; flex-wrap:wrap; margin-bottom:.875rem; font-size:.75rem; color:var(--muted-foreground); }
-    .l-swatch { display:inline-block; width:12px; height:12px; border-radius:3px; flex-shrink:0; }
+.header-title { font-size:1.75rem; font-weight:600; letter-spacing:-.025em; }
+.header-subtitle { font-size:.875rem; color:var(--muted-foreground); margin-top:.25rem; }
 
-    /* Confidence pills */
-    .cpill { display:inline-flex; align-items:center; justify-content:center; font-size:.58rem; font-weight:700; text-transform:uppercase; padding:.15rem .45rem; border-radius:.25rem; letter-spacing:.05em; white-space:nowrap; }
-    .cpill-green { background:hsl(142,50%,88%); color:hsl(142,55%,26%); }
-    .dark .cpill-green { background:hsl(142,33%,18%); color:hsl(142,60%,64%); }
-    .cpill-amber { background:hsl(38,88%,90%); color:hsl(38,78%,26%); }
-    .dark .cpill-amber { background:hsl(38,36%,18%); color:hsl(38,78%,64%); }
-    .cpill-red { background:hsl(5,75%,90%); color:hsl(5,68%,30%); }
-    .dark .cpill-red { background:hsl(5,36%,20%); color:hsl(5,68%,64%); }
-    .cpill-muted { background:var(--border); color:var(--muted-foreground); }
+.range-wrap { display:flex; align-items:center; gap:.75rem; }
+.range-wrap input[type=range] { flex:1; accent-color:var(--primary); cursor:pointer; }
+.range-val { font-family:'JetBrains Mono',monospace; font-size:.8125rem; font-weight:600; min-width:3.5rem; text-align:right; }
 
-    /* ── Digit bars ─────────────────────────────────────────────── */
-    .dbar-hdr, .dbar-row {
-      display:grid;
-      grid-template-columns: 1.75rem 1fr 4.5rem 4.75rem 6rem 8.75rem;
-      gap:.5rem; align-items:center;
-      padding:.3rem 0;
-    }
-    .dbar-hdr { border-bottom:2px solid var(--border); padding-bottom:.4rem; margin-bottom:.1rem; font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted-foreground); }
-    .dbar-row { border-bottom:1px solid var(--border); }
-    .dbar-row:last-child { border-bottom:none; }
-    .dbar-lbl { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.9375rem; text-align:center; }
-    .dbar-track { height:10px; background:var(--border); border-radius:5px; overflow:hidden; position:relative; }
-    .dbar-fill { height:100%; border-radius:5px; transition:width .35s ease; }
-    .dbar-baseline { position:absolute; top:0; width:2px; height:100%; background:var(--foreground); opacity:.2; }
-    .dbar-score { font-family:'JetBrains Mono',monospace; font-size:.8rem; font-weight:600; text-align:right; white-space:nowrap; }
-    .dbar-excess { font-family:'JetBrains Mono',monospace; font-size:.75rem; text-align:right; white-space:nowrap; }
-    .dbar-since { font-size:.7rem; text-align:right; color:var(--muted-foreground); white-space:nowrap; }
-    @media (max-width:680px) {
-      .dbar-hdr, .dbar-row { grid-template-columns:1.75rem 1fr 4rem 4rem; }
-      .dbar-hdr > *:nth-child(n+5), .dbar-row > *:nth-child(n+5) { display:none; }
-    }
+/* Legend row */
+.legend-row { display:flex; align-items:center; gap:1rem; flex-wrap:wrap; margin-bottom:.875rem; font-size:.75rem; color:var(--muted-foreground); }
+.l-swatch { display:inline-block; width:12px; height:12px; border-radius:3px; flex-shrink:0; }
 
-    /* ── Number prediction table ──────────────────────────────── */
-    .pt { width:100%; border-collapse:collapse; font-size:.8125rem; }
-    .pt thead th { padding:.4rem .5rem; text-align:left; border-bottom:2px solid var(--border); font-size:.6rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted-foreground); font-weight:600; white-space:nowrap; }
-    .pt td { padding:.35rem .5rem; border-bottom:1px solid var(--border); vertical-align:middle; }
-    .pt tbody tr:last-child td { border-bottom:none; }
-    .pt tbody tr:hover { background:var(--background); }
-    .pt-num { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.9375rem; color:var(--primary); }
-    .pt-mir { font-family:'JetBrains Mono',monospace; font-size:.8125rem; color:var(--muted-foreground); }
-    .pt-bar { height:5px; background:var(--border); border-radius:3px; margin-top:3px; }
-    .pt-bar-fill { height:100%; border-radius:3px; }
-    .oc-dim { opacity:.55; }
+/* Confidence pills */
+.cpill { display:inline-flex; align-items:center; justify-content:center; font-size:.58rem; font-weight:700; text-transform:uppercase; padding:.15rem .45rem; border-radius:.25rem; letter-spacing:.05em; white-space:nowrap; }
+.cpill-green { background:hsl(142,50%,88%); color:hsl(142,55%,26%); }
+.dark .cpill-green { background:hsl(142,33%,18%); color:hsl(142,60%,64%); }
+.cpill-amber { background:hsl(38,88%,90%); color:hsl(38,78%,26%); }
+.dark .cpill-amber { background:hsl(38,36%,18%); color:hsl(38,78%,64%); }
+.cpill-red { background:hsl(5,75%,90%); color:hsl(5,68%,30%); }
+.dark .cpill-red { background:hsl(5,36%,20%); color:hsl(5,68%,64%); }
+.cpill-muted { background:var(--border); color:var(--muted-foreground); }
 
-    /* ── Unordered pair table ─────────────────────────────────── */
-    .pair-note { font-size:.7rem; color:var(--muted-foreground); font-style:italic; margin-top:.5rem; line-height:1.55; }
+/* ── Digit bars ─────────────────────────────────────────────── */
+.dbar-hdr, .dbar-row {
+  display:grid;
+  grid-template-columns: 1.75rem 1fr 4.5rem 4.75rem 6rem 8.75rem;
+  gap:.5rem; align-items:center;
+  padding:.3rem 0;
+}
+.dbar-hdr { border-bottom:2px solid var(--border); padding-bottom:.4rem; margin-bottom:.1rem; font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted-foreground); }
+.dbar-row { border-bottom:1px solid var(--border); }
+.dbar-row:last-child { border-bottom:none; }
+.dbar-lbl { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.9375rem; text-align:center; }
+.dbar-track { height:10px; background:var(--border); border-radius:5px; overflow:hidden; position:relative; }
+.dbar-fill { height:100%; border-radius:5px; transition:width .35s ease; }
+.dbar-baseline { position:absolute; top:0; width:2px; height:100%; background:var(--foreground); opacity:.2; }
+.dbar-score { font-family:'JetBrains Mono',monospace; font-size:.8rem; font-weight:600; text-align:right; white-space:nowrap; }
+.dbar-excess { font-family:'JetBrains Mono',monospace; font-size:.75rem; text-align:right; white-space:nowrap; }
+.dbar-since { font-size:.7rem; text-align:right; color:var(--muted-foreground); white-space:nowrap; }
+@media (max-width:680px) {
+  .dbar-hdr, .dbar-row { grid-template-columns:1.75rem 1fr 4rem 4rem; }
+  .dbar-hdr > *:nth-child(n+5), .dbar-row > *:nth-child(n+5) { display:none; }
+}
 
-    /* ── Lookahead table ──────────────────────────────────────── */
-    .la-tbl { width:100%; border-collapse:collapse; font-size:.8125rem; margin-top:.75rem; }
-    .la-tbl th { padding:.45rem .65rem; border-bottom:2px solid var(--border); font-size:.6rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted-foreground); font-weight:600; text-align:center; white-space:nowrap; }
-    .la-tbl th:first-child { text-align:left; }
-    .la-tbl td { padding:.45rem .65rem; border-bottom:1px solid var(--border); text-align:center; font-family:'JetBrains Mono',monospace; font-size:.8125rem; }
-    .la-tbl td:first-child { text-align:left; font-weight:600; font-family:inherit; }
-    .la-tbl tbody tr:last-child td { border-bottom:none; }
-    .la-hi  { background:hsl(142,50%,90%); color:hsl(142,55%,24%); border-radius:4px; font-weight:700; }
-    .dark .la-hi  { background:hsl(142,30%,18%); color:hsl(142,60%,64%); }
-    .la-med { background:hsl(38,85%,91%); color:hsl(38,78%,24%); border-radius:4px; font-weight:500; }
-    .dark .la-med { background:hsl(38,33%,18%); color:hsl(38,78%,64%); }
-    .la-lo  { color:var(--muted-foreground); }
-    .la-oc  { text-decoration:line-through; opacity:.4; }
+/* ── Number prediction table ──────────────────────────────── */
+.pt { width:100%; border-collapse:collapse; font-size:.8125rem; }
+.pt thead th { padding:.4rem .5rem; text-align:left; border-bottom:2px solid var(--border); font-size:.6rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted-foreground); font-weight:600; white-space:nowrap; }
+.pt td { padding:.35rem .5rem; border-bottom:1px solid var(--border); vertical-align:middle; }
+.pt tbody tr:last-child td { border-bottom:none; }
+.pt tbody tr:hover { background:var(--background); }
+.pt-num { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.9375rem; color:var(--primary); }
+.pt-mir { font-family:'JetBrains Mono',monospace; font-size:.8125rem; color:var(--muted-foreground); }
+.pt-bar { height:5px; background:var(--border); border-radius:3px; margin-top:3px; }
+.pt-bar-fill { height:100%; border-radius:3px; }
+.oc-dim { opacity:.55; }
 
-    /* ── Backtest ─────────────────────────────────────────────── */
-    .bt-summary { display:flex; gap:1.5rem; flex-wrap:wrap; padding:.625rem .875rem; background:var(--background); border:1px solid var(--border); border-radius:calc(var(--radius)*.75); margin-bottom:.875rem; }
-    .bt-sum-item { display:flex; flex-direction:column; gap:.15rem; }
-    .bt-sum-lbl { font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted-foreground); }
-    .bt-sum-val { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.9375rem; }
-    .bt-wrap { overflow-x:auto; }
-    .bt-grid { min-width:660px; }
-    .bt-hdr, .bt-row { display:grid; grid-template-columns:6.5rem 3.5rem 1fr 3.75rem 3.75rem 3.75rem 3.75rem; gap:.4rem; padding:.35rem .625rem; align-items:center; }
-    .bt-hdr { border-bottom:2px solid var(--border); font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted-foreground); }
-    .bt-row { border-bottom:1px solid var(--border); font-size:.8125rem; }
-    .bt-row:last-child { border-bottom:none; }
-    .bt-row:hover { background:var(--background); }
-    .bt-date { font-family:'JetBrains Mono',monospace; font-size:.7rem; color:var(--muted-foreground); }
-    .bt-actual { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.9375rem; }
-    .bt-chips { display:flex; flex-wrap:wrap; gap:.2rem; }
-    .bt-chip { font-family:'JetBrains Mono',monospace; font-size:.64rem; font-weight:500; padding:.1rem .28rem; border-radius:3px; border:1px solid var(--border); background:var(--background); }
-    .bt-chip.exact-hit { background:var(--primary); border-color:var(--primary); color:#fff; font-weight:700; }
-    .bt-chip.pair-hit  { background:hsl(142,55%,44%); border-color:hsl(142,55%,44%); color:#fff; font-weight:700; }
-    .bt-cell { text-align:center; font-size:.7rem; font-weight:600; }
-    .bt-yes  { color:hsl(142,55%,38%); }
-    .dark .bt-yes  { color:hsl(142,60%,60%); }
-    .bt-pair { color:hsl(215,75%,50%); }
-    .dark .bt-pair { color:hsl(215,75%,65%); }
-    .bt-no   { color:var(--muted-foreground); opacity:.3; }
+/* ── Unordered pair table ─────────────────────────────────── */
+.pair-note { font-size:.7rem; color:var(--muted-foreground); font-style:italic; margin-top:.5rem; line-height:1.55; }
 
-    /* Calibration notes */
-    .calib-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; margin-top:.875rem; }
-    @media (max-width:700px) { .calib-grid { grid-template-columns:1fr; } }
-    .calib-title { font-size:.8125rem; font-weight:600; margin-bottom:.5rem; }
-    .calib-grid ul { padding-left:1.125rem; font-size:.8125rem; line-height:1.8; }
-    .disclaimer { background:var(--background); border:1px solid var(--border); border-radius:calc(var(--radius)*.75); padding:.75rem 1rem; font-size:.75rem; color:var(--muted-foreground); margin-top:.875rem; line-height:1.55; }
+/* ── Lookahead table ──────────────────────────────────────── */
+.la-tbl { width:100%; border-collapse:collapse; font-size:.8125rem; margin-top:.75rem; }
+.la-tbl th { padding:.45rem .65rem; border-bottom:2px solid var(--border); font-size:.6rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted-foreground); font-weight:600; text-align:center; white-space:nowrap; }
+.la-tbl th:first-child { text-align:left; }
+.la-tbl td { padding:.45rem .65rem; border-bottom:1px solid var(--border); text-align:center; font-family:'JetBrains Mono',monospace; font-size:.8125rem; }
+.la-tbl td:first-child { text-align:left; font-weight:600; font-family:inherit; }
+.la-tbl tbody tr:last-child td { border-bottom:none; }
+.la-hi  { background:hsl(142,50%,90%); color:hsl(142,55%,24%); border-radius:4px; font-weight:700; }
+.dark .la-hi  { background:hsl(142,30%,18%); color:hsl(142,60%,64%); }
+.la-med { background:hsl(38,85%,91%); color:hsl(38,78%,24%); border-radius:4px; font-weight:500; }
+.dark .la-med { background:hsl(38,33%,18%); color:hsl(38,78%,64%); }
+.la-lo  { color:var(--muted-foreground); }
+.la-oc  { text-decoration:line-through; opacity:.4; }
+
+/* ── Backtest ─────────────────────────────────────────────── */
+.bt-summary { display:flex; gap:1.5rem; flex-wrap:wrap; padding:.625rem .875rem; background:var(--background); border:1px solid var(--border); border-radius:calc(var(--radius)*.75); margin-bottom:.875rem; }
+.bt-sum-item { display:flex; flex-direction:column; gap:.15rem; }
+.bt-sum-lbl { font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted-foreground); }
+.bt-sum-val { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.9375rem; }
+.bt-wrap { overflow-x:auto; }
+.bt-grid { min-width:820px; }
+.bt-hdr, .bt-row {
+  display:grid;
+  grid-template-columns: 6.5rem 4.5rem 9rem 1fr 5.25rem 5.25rem 5.25rem;
+  gap:.4rem; padding:.4rem .625rem; align-items:center;
+}
+.bt-hdr { border-bottom:2px solid var(--border); font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted-foreground); }
+.bt-row { border-bottom:1px solid var(--border); font-size:.8125rem; }
+.bt-row:last-child { border-bottom:none; }
+.bt-row:hover { background:var(--background); }
+.bt-date { font-family:'JetBrains Mono',monospace; font-size:.7rem; color:var(--muted-foreground); }
+.bt-actual { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.9375rem; }
+.bt-chips { display:flex; flex-wrap:wrap; gap:.2rem; align-items:center; }
+.bt-chip {
+  font-family:'JetBrains Mono',monospace; font-size:.64rem; font-weight:500;
+  padding:.1rem .3rem; border-radius:3px; border:1px solid var(--border);
+  background:var(--background); white-space:nowrap; line-height:1.3;
+}
+.bt-chip.pair-hit { background:hsl(142,55%,44%); border-color:hsl(142,55%,44%); color:#fff; font-weight:700; }
+.bt-chip.oc-chip  { border-color:hsl(5,68%,50%); color:hsl(5,68%,46%); background:hsl(5,68%,96%); }
+.dark .bt-chip.oc-chip { background:hsl(5,38%,18%); color:hsl(5,68%,64%); border-color:hsl(5,55%,38%); }
+.bt-cell { text-align:center; font-size:.7rem; font-weight:600; }
+.bt-pair-col { text-align:center; }
+.bt-no { text-align:center; color:var(--muted-foreground); opacity:.3; font-size:.7rem; }
+.bt-pair { color:hsl(215,75%,50%); }
+.dark .bt-pair { color:hsl(215,75%,65%); }
+
+/* Calibration notes */
+.calib-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; margin-top:.875rem; }
+@media (max-width:700px) { .calib-grid { grid-template-columns:1fr; } }
+.calib-title { font-size:.8125rem; font-weight:600; margin-bottom:.5rem; }
+.calib-grid ul { padding-left:1.125rem; font-size:.8125rem; line-height:1.8; }
+.disclaimer { background:var(--background); border:1px solid var(--border); border-radius:calc(var(--radius)*.75); padding:.75rem 1rem; font-size:.75rem; color:var(--muted-foreground); margin-top:.875rem; line-height:1.55; }
+```
+
   </style>
 </head>
 <body>
@@ -172,178 +217,197 @@
 
   <main class="container" id="mainContent" style="padding-bottom:3rem;">
 
-    <!-- Sticky collapsible controls -->
-    <div class="panel-sticky-wrap" style="margin-top:1.5rem;">
-      <button class="panel-collapse-btn is-open" id="predPanelBtn" type="button">
-        <span class="pcb-left">
-          <span>⚙︎ Model Controls</span>
-          <span class="pcb-summary" id="predPanelSum"></span>
-        </span>
-        <span class="pcb-chevron"></span>
-      </button>
-      <div class="panel-collapsible" id="predPanelBody">
-        <div class="control-panel">
-          <div class="controls-grid">
+```
+<!-- Sticky collapsible controls -->
+<div class="panel-sticky-wrap" style="margin-top:1.5rem;">
+  <button class="panel-collapse-btn is-open" id="predPanelBtn" type="button">
+    <span class="pcb-left">
+      <span>⚙︎ Model Controls</span>
+      <span class="pcb-summary" id="predPanelSum"></span>
+    </span>
+    <span class="pcb-chevron"></span>
+  </button>
+  <div class="panel-collapsible" id="predPanelBody">
+    <div class="control-panel">
+      <div class="controls-grid">
 
-            <div class="control-group">
-              <label class="control-label" for="trainWinSel">Training window</label>
-              <select id="trainWinSel" class="select-input">
-                <option value="0">All draws</option>
-                <option value="100" selected>Last 100 draws</option>
-                <option value="150">Last 150 draws</option>
-                <option value="200">Last 200 draws</option>
-                <option value="300">Last 300 draws</option>
-              </select>
-              <span class="helper-text">Draws used for base rate &amp; gap stats</span>
-            </div>
+        <div class="control-group">
+          <label class="control-label" for="trainWinSel">Training window</label>
+          <select id="trainWinSel" class="select-input">
+            <option value="0">All draws</option>
+            <option value="100" selected>Last 100 draws</option>
+            <option value="150">Last 150 draws</option>
+            <option value="200">Last 200 draws</option>
+            <option value="300">Last 300 draws</option>
+          </select>
+          <span class="helper-text">Draws used for base rate &amp; gap stats</span>
+        </div>
 
-            <div class="control-group" style="min-width:210px;">
-              <label class="control-label">Recency window W = <span id="recLbl">20</span></label>
-              <div class="range-wrap">
-                <input type="range" id="recSlider" min="10" max="40" value="20" step="1">
-                <span class="range-val"><span id="recLbl2">20</span> draws</span>
-              </div>
-              <span class="helper-text">Short-term frequency signal (weight 35 %)</span>
-            </div>
-
-            <div class="control-group">
-              <label class="control-label" for="topNSel">Numbers in prediction list</label>
-              <select id="topNSel" class="select-input">
-                <option value="10">Top 10</option>
-                <option value="15" selected>Top 15</option>
-                <option value="20">Top 20</option>
-              </select>
-            </div>
-
-            <div class="control-group">
-              <label class="control-label" for="btRowsSel">Backtest rows shown</label>
-              <select id="btRowsSel" class="select-input">
-                <option value="15">Last 15</option>
-                <option value="20" selected>Last 20</option>
-                <option value="30">Last 30</option>
-                <option value="50">Last 50</option>
-              </select>
-              <span class="helper-text">Historical prediction snapshots to show</span>
-            </div>
-
+        <div class="control-group" style="min-width:210px;">
+          <label class="control-label">Recency window W = <span id="recLbl">20</span></label>
+          <div class="range-wrap">
+            <input type="range" id="recSlider" min="10" max="40" value="20" step="1">
+            <span class="range-val"><span id="recLbl2">20</span> draws</span>
           </div>
+          <span class="helper-text">Short-term frequency signal (weight 35 %)</span>
         </div>
-      </div>
-    </div>
 
-    <!-- Status -->
-    <div class="status-bar">
-      <span id="statusDot" class="status-dot"></span>
-      <span id="statusText">Loading data from cache…</span>
-    </div>
-
-    <!-- 1. Stat cards -->
-    <div id="statCards" class="stat-cards-row"></div>
-
-    <!-- 2. Digit probability bars -->
-    <div class="pred-card">
-      <div class="pred-card-title">Digit Probability Scores — Next Draw</div>
-      <div class="pred-card-sub">
-        Score per digit = <strong>35 % recency</strong> (last W draws) + <strong>45 % overdueness</strong>
-        (draws since last seen ÷ personal average gap, capped at 3×) + <strong>20 % all-time base rate</strong>.
-        Normalised to sum 100 %. The marker on each bar = 10 % (perfect uniform baseline).
-        Backtest key finding: when score exceeds 24 %, the model actually hits <em>less</em> than random (13.8 % vs 19 %).
-        Best zone is 17–20 % (actual hit 20.9 %).
-      </div>
-      <div class="legend-row">
-        <span class="l-swatch cpill-green"></span><span>Calibrated 17–20 % · backtest hit 20.9 %</span>
-        <span class="l-swatch cpill-amber"></span><span>Elevated 20–24 %</span>
-        <span class="l-swatch cpill-red"></span><span>Overconfident &gt;24 % · backtest hit 13.8 % ↓ downgrade estimates</span>
-      </div>
-      <div id="digitBars"></div>
-    </div>
-
-    <!-- 3. Two-col: number predictions + unordered pairs -->
-    <div class="two-col">
-      <div class="pred-card" style="margin-top:0;">
-        <div class="pred-card-title">Number Predictions — Next Draw</div>
-        <div class="pred-card-sub">
-          P(number "AB") = P(digit A) × P(digit B). Pod placement is random, so "06" = "60" (symmetry confirmed Z=−1.52).
-          Both are always listed as a pair. ⚠ = contains a digit scored &gt;24 % — treat with scepticism.
+        <div class="control-group">
+          <label class="control-label" for="topNSel">Numbers in prediction list</label>
+          <select id="topNSel" class="select-input">
+            <option value="10">Top 10</option>
+            <option value="15" selected>Top 15</option>
+            <option value="20">Top 20</option>
+          </select>
         </div>
-        <div id="numPredTable"></div>
-      </div>
 
-      <div class="pred-card" style="margin-top:0;">
-        <div class="pred-card-title">Top Unordered Pairs to Track</div>
-        <div class="pred-card-sub">
-          Each row is <strong>one bet covering two tickets</strong> (AB and BA). Combined P = 2 × P(A) × P(B) for A≠B.
-          Buying "59" means "95" is covered — both should always be purchased together.
+        <div class="control-group">
+          <label class="control-label" for="btRowsSel">Backtest rows shown</label>
+          <select id="btRowsSel" class="select-input">
+            <option value="15">Last 15</option>
+            <option value="20" selected>Last 20</option>
+            <option value="30">Last 30</option>
+            <option value="50">Last 50</option>
+          </select>
+          <span class="helper-text">Historical prediction snapshots to show</span>
         </div>
-        <div id="pairTable"></div>
-      </div>
-    </div>
 
-    <!-- 4. N-draw lookahead -->
-    <div class="pred-card">
-      <div class="pred-card-title">Cumulative Probability — Next N Draws</div>
-      <div class="pred-card-sub">
-        P(digit D appears at least once in next N draws) = 1 − (1 − P<sub>draw</sub>)<sup>N</sup>,
-        where P<sub>draw</sub> = 1 − (1 − p<sub>d</sub>)² (two slots per draw).
-        Overconfident digits (score &gt;24 %) are struck through. The <em>adjusted</em> values apply a 0.73× correction factor
-        derived from backtest calibration (actual 13.8 % ÷ expected ~19 % at that score level).
-        These are still estimates, not guarantees.
-      </div>
-      <div id="lookaheadTable"></div>
-    </div>
-
-    <!-- 5. Walk-forward backtest -->
-    <div class="pred-card">
-      <div class="pred-card-title">Walk-Forward Backtest Result Window</div>
-      <div class="pred-card-sub">
-        Model is retrained on <em>all prior draws only</em> at each step — no look-ahead bias.
-        <strong>Exact</strong> (blue chip) = drawn number is in the top prediction list.
-        <strong>Pair</strong> (green chip) = drawn number <em>or its mirror</em> is in the list (this is the recommended metric given confirmed symmetry).
-        <strong>+1 / +2 / +4</strong> = did an exact or pair hit occur within that many draws of the prediction point?
-        Use the pair column — it accounts for the 06↔60 symmetry finding.
-      </div>
-      <div id="btSummary" class="bt-summary"></div>
-      <div class="bt-wrap"><div id="btGrid" class="bt-grid"></div></div>
-    </div>
-
-    <!-- 6. Model calibration notes -->
-    <div class="pred-card" style="border-left:3px solid var(--primary);">
-      <div class="pred-card-title">Model Calibration Summary</div>
-      <div class="pred-card-sub">From 397-draw walk-forward backtest · 458 total draws · 2006–2026 · TWO prize only</div>
-      <div class="calib-grid">
-        <div>
-          <div class="calib-title" style="color:hsl(142,55%,38%);">✓ What works (with caveats)</div>
-          <ul>
-            <li><strong>06 = 60.</strong> Symmetry statistically confirmed. Track unordered pairs.</li>
-            <li><strong>Overdue signal</strong> is the strongest feature (45 % weight). Best used for 4+ draw windows.</li>
-            <li><strong>Top-5 selection</strong> hits 5.3 % vs 5.0 % random baseline. Marginal but directionally correct.</li>
-            <li><strong>17–20 % score zone</strong> is the honest zone — actual hit 20.9 %, slightly above baseline 19 %.</li>
-            <li><strong>35/45/20 weight split</strong> was optimal; W = 20 recency window was best.</li>
-            <li><strong>Multi-draw windows</strong> accumulate probability fast — a 13 % digit has ~65 % chance in 4 draws.</li>
-          </ul>
+        <!-- Prediction cutoff — only active when Training window = All draws -->
+        <div class="control-group" id="cutoffWrapPred" style="opacity:.4;pointer-events:none;">
+          <label class="control-label">Prediction cutoff date</label>
+          <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+            <input type="date" id="predCutoffDate" class="date-input date-input-narrow" disabled>
+            <button type="button" id="applyPredCutoff" class="date-action-btn" disabled>Apply</button>
+            <button type="button" id="clearPredCutoff" class="date-action-btn" disabled>Clear</button>
+          </div>
+          <span class="helper-text">
+            Only available when <strong>Training = All draws</strong>.<br>
+            Train on draws up to this date — model predicts everything after it.<br>
+            Backtest shows draws after cutoff only. Simulate "I'm in 2021".
+          </span>
         </div>
-        <div>
-          <div class="calib-title" style="color:hsl(5,68%,46%);">✗ What doesn't work</div>
-          <ul>
-            <li><strong>Score &gt;24 %</strong>: actual hit rate 13.8 % — worse than random 19 %. Model overcorrects.</li>
-            <li><strong>Recency-only</strong> strategies (any window size) were worse than random across all tests.</li>
-            <li><strong>Single exact prediction</strong>: top-1 hit 0.5 % — 100 outcomes is an unavoidable hard limit.</li>
-            <li><strong>"Due number" logic</strong>: no confirmed mean-reversion. Long absences are normal noise in a fair draw.</li>
-            <li><strong>Sample size</strong>: 458 draws is too small to confirm a 2 pp edge (need ~2 000).</li>
-            <li><strong>High model certainty ≠ higher trust.</strong> The inverse holds in the backtest.</li>
-          </ul>
-        </div>
-      </div>
-      <div class="disclaimer">
-        ⚠️ <strong>No confirmed statistical edge.</strong> The draw is indistinguishable from a fair random process over 458 draws.
-        The 5.3 % top-5 hit rate is not statistically significant (Z = 0.27 · p ≈ 0.79).
-        The model provides <em>structured probability ranking</em> — its value is narrowing the watch list across multiple draws, not calling a specific result.
+
       </div>
     </div>
+  </div>
+</div>
+
+<!-- Status -->
+<div class="status-bar">
+  <span id="statusDot" class="status-dot"></span>
+  <span id="statusText">Loading data from cache…</span>
+</div>
+
+<!-- 1. Stat cards -->
+<div id="statCards" class="stat-cards-row"></div>
+
+<!-- 2. Digit probability bars -->
+<div class="pred-card">
+  <div class="pred-card-title">Digit Probability Scores — Next Draw</div>
+  <div class="pred-card-sub">
+    Score per digit = <strong>35 % recency</strong> (last W draws) + <strong>45 % overdueness</strong>
+    (draws since last seen ÷ personal average gap, capped at 3×) + <strong>20 % all-time base rate</strong>.
+    Normalised to sum 100 %. The marker on each bar = 10 % (perfect uniform baseline).
+    Backtest key finding: when score exceeds 24 %, the model actually hits <em>less</em> than random (13.8 % vs 19 %).
+    Best zone is 17–20 % (actual hit 20.9 %).
+  </div>
+  <div class="legend-row">
+    <span class="l-swatch cpill-green"></span><span>Calibrated 17–20 % · backtest hit 20.9 %</span>
+    <span class="l-swatch cpill-amber"></span><span>Elevated 20–24 %</span>
+    <span class="l-swatch cpill-red"></span><span>Overconfident &gt;24 % · backtest hit 13.8 % ↓ downgrade estimates</span>
+  </div>
+  <div id="digitBars"></div>
+</div>
+
+<!-- 3. Two-col: number predictions + unordered pairs -->
+<div class="two-col">
+  <div class="pred-card" style="margin-top:0;">
+    <div class="pred-card-title">Number Predictions — Next Draw</div>
+    <div class="pred-card-sub">
+      P(number "AB") = P(digit A) × P(digit B). Pod placement is random, so "06" = "60" (symmetry confirmed Z=−1.52).
+      Both are always listed as a pair. ⚠ = contains a digit scored &gt;24 % — treat with scepticism.
+    </div>
+    <div id="numPredTable"></div>
+  </div>
+
+  <div class="pred-card" style="margin-top:0;">
+    <div class="pred-card-title">Top Unordered Pairs to Track</div>
+    <div class="pred-card-sub">
+      Each row is <strong>one bet covering two tickets</strong> (AB and BA). Combined P = 2 × P(A) × P(B) for A≠B.
+      Buying "59" means "95" is covered — both should always be purchased together.
+    </div>
+    <div id="pairTable"></div>
+  </div>
+</div>
+
+<!-- 4. N-draw lookahead -->
+<div class="pred-card">
+  <div class="pred-card-title">Cumulative Probability — Next N Draws</div>
+  <div class="pred-card-sub">
+    P(digit D appears at least once in next N draws) = 1 − (1 − P<sub>draw</sub>)<sup>N</sup>,
+    where P<sub>draw</sub> = 1 − (1 − p<sub>d</sub>)² (two slots per draw).
+    Overconfident digits (score &gt;24 %) are struck through. The <em>adjusted</em> values apply a 0.73× correction factor
+    derived from backtest calibration (actual 13.8 % ÷ expected ~19 % at that score level).
+    These are still estimates, not guarantees.
+  </div>
+  <div id="lookaheadTable"></div>
+</div>
+
+<!-- 5. Walk-forward backtest -->
+<div class="pred-card">
+  <div class="pred-card-title">Walk-Forward Backtest Result Window</div>
+  <div class="pred-card-sub">
+    Model retrained on <em>all prior draws only</em> at each step — no look-ahead bias.
+    <strong>Digits</strong>: top 3 digit scores at prediction time — <span style="color:hsl(5,68%,48%)">⚠ = overconfident (&gt;24%)</span>, green = calibrated.
+    <strong>Prediction chips</strong>: top numbers with their probability below. <span style="color:hsl(5,68%,46%);">Red border</span> = OC digit in that number. <span style="color:hsl(142,55%,40%);font-weight:600;">Green chip</span> = hit.
+    <strong>Pair / +2 / +4</strong>: shows drawn number, draw offset, and the model's probability it held for that number.
+    +2 and +4 show the <em>first</em> pair hit within that window.
+    Use cutoff mode (controls → Training = All draws → set date) to simulate predictions from any historical point.
+  </div>
+  <div id="btSummary" class="bt-summary"></div>
+  <div class="bt-wrap"><div id="btGrid" class="bt-grid"></div></div>
+</div>
+
+<!-- 6. Model calibration notes -->
+<div class="pred-card" style="border-left:3px solid var(--primary);">
+  <div class="pred-card-title">Model Calibration Summary</div>
+  <div class="pred-card-sub">From 397-draw walk-forward backtest · 458 total draws · 2006–2026 · TWO prize only</div>
+  <div class="calib-grid">
+    <div>
+      <div class="calib-title" style="color:hsl(142,55%,38%);">✓ What works (with caveats)</div>
+      <ul>
+        <li><strong>06 = 60.</strong> Symmetry statistically confirmed. Track unordered pairs.</li>
+        <li><strong>Overdue signal</strong> is the strongest feature (45 % weight). Best used for 4+ draw windows.</li>
+        <li><strong>Top-5 selection</strong> hits 5.3 % vs 5.0 % random baseline. Marginal but directionally correct.</li>
+        <li><strong>17–20 % score zone</strong> is the honest zone — actual hit 20.9 %, slightly above baseline 19 %.</li>
+        <li><strong>35/45/20 weight split</strong> was optimal; W = 20 recency window was best.</li>
+        <li><strong>Multi-draw windows</strong> accumulate probability fast — a 13 % digit has ~65 % chance in 4 draws.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="calib-title" style="color:hsl(5,68%,46%);">✗ What doesn't work</div>
+      <ul>
+        <li><strong>Score &gt;24 %</strong>: actual hit rate 13.8 % — worse than random 19 %. Model overcorrects.</li>
+        <li><strong>Recency-only</strong> strategies (any window size) were worse than random across all tests.</li>
+        <li><strong>Single exact prediction</strong>: top-1 hit 0.5 % — 100 outcomes is an unavoidable hard limit.</li>
+        <li><strong>"Due number" logic</strong>: no confirmed mean-reversion. Long absences are normal noise in a fair draw.</li>
+        <li><strong>Sample size</strong>: 458 draws is too small to confirm a 2 pp edge (need ~2 000).</li>
+        <li><strong>High model certainty ≠ higher trust.</strong> The inverse holds in the backtest.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="disclaimer">
+    ⚠️ <strong>No confirmed statistical edge.</strong> The draw is indistinguishable from a fair random process over 458 draws.
+    The 5.3 % top-5 hit rate is not statistically significant (Z = 0.27 · p ≈ 0.79).
+    The model provides <em>structured probability ranking</em> — its value is narrowing the watch list across multiple draws, not calling a specific result.
+  </div>
+</div>
+```
 
   </main>
 
   <script src="predictions.js"></script>
+
   <script>
   /* Nav active-page highlight */
   (function () {
@@ -384,5 +448,6 @@
     updateSummary();
   })();
   </script>
+
 </body>
 </html>
