@@ -33,11 +33,12 @@ const STORE_NAME = 'agg-store';
 const CACHE_KEY  = 'perFileAggMap_v2';
 
 // ── State ─────────────────────────────────────────────────────────────────
-let allDraws = [];   // [{dateStr, twoNum}] sorted oldest→newest
-let recW     = 20;   // recency window
-let trainWin = 100;  // 0 = all
-let topN     = 15;
-let btRows   = 20;
+let allDraws   = [];   // [{dateStr, twoNum}] sorted oldest→newest
+let recW       = 20;   // recency window
+let trainWin   = 0;    // always all draws – not user-controllable
+let topN       = 15;
+let btRows     = 20;
+let predCutoff = 0;    // 0 = use all draws for predictions; >0 = first X draws
 
 // ── DOM refs ──────────────────────────────────────────────────────────────
 const $         = id => document.getElementById(id);
@@ -60,9 +61,10 @@ $('themeToggle').addEventListener('click', () => {
 }
 
 // ── Controls ──────────────────────────────────────────────────────────────
-$('trainWinSel').addEventListener('change', e => { trainWin = +e.target.value; renderAll(); });
-$('topNSel').addEventListener('change',    e => { topN     = +e.target.value; renderAll(); });
-$('btRowsSel').addEventListener('change',  e => { btRows   = +e.target.value; renderAll(); });
+// trainWin is fixed at 0 (all draws) — no listener needed
+
+$('topNSel').addEventListener('change',   e => { topN   = +e.target.value; renderAll(); });
+$('btRowsSel').addEventListener('change', e => { btRows = +e.target.value; renderAll(); });
 
 $('recSlider').addEventListener('input', e => {
   recW = +e.target.value;
@@ -70,6 +72,29 @@ $('recSlider').addEventListener('input', e => {
   $('recLbl2').textContent = recW;
   renderAll();
 });
+
+$('predCutoffInput').addEventListener('input', e => {
+  const v = parseInt(e.target.value, 10);
+  predCutoff = (!e.target.value.trim() || isNaN(v) || v <= 0) ? 0 : v;
+  updateNextResult();
+  renderAll();
+});
+
+function updateNextResult() {
+  const el = $('nextResultDisplay');
+  if (!el) return;
+  if (!allDraws.length) { el.textContent = ''; return; }
+  const idx = predCutoff > 0 ? predCutoff : allDraws.length;
+  if (idx < allDraws.length) {
+    const d = allDraws[idx];
+    el.innerHTML =
+      `Next result: <strong style="font-family:'JetBrains Mono',monospace;color:var(--primary)">${d.twoNum}</strong>` +
+      `<span style="color:var(--muted-foreground);font-size:.7rem;margin-left:.35rem;">(${d.dateStr})</span>`;
+  } else {
+    el.innerHTML =
+      `Next result: <span style="color:var(--muted-foreground);">Unknown (future)</span>`;
+  }
+}
 
 // ── IndexedDB loader ──────────────────────────────────────────────────────
 async function loadCache() {
@@ -96,11 +121,15 @@ async function init() {
 
   if (!cached || !cached.data || !Object.keys(cached.data).length) {
     setStatus('empty', 'No data. Open the Analyzer page first to load data, then return here.');
-    $('mainContent').querySelector('#statCards').insertAdjacentHTML('beforebegin', `
-      <div style="text-align:center;padding:4rem 2rem;color:var(--muted-foreground)">
-        <h2 style="color:var(--foreground);font-size:1.25rem;margin-bottom:.75rem">No data loaded</h2>
-        <p>Please open <a href="index.html" style="color:var(--primary)">the Analyzer</a> first to cache lottery data.</p>
-      </div>`);
+    const mc = $('mainContent');
+    if (mc) {
+      const sc = mc.querySelector('#statCards');
+      if (sc) sc.insertAdjacentHTML('beforebegin', `
+        <div style="text-align:center;padding:4rem 2rem;color:var(--muted-foreground)">
+          <h2 style="color:var(--foreground);font-size:1.25rem;margin-bottom:.75rem">No data loaded</h2>
+          <p>Please open <a href="index.html" style="color:var(--primary)">the Analyzer</a> first to cache lottery data.</p>
+        </div>`);
+    }
     return;
   }
 
@@ -120,6 +149,7 @@ async function init() {
     ` · ${allDraws[0]?.dateStr} → ${allDraws[allDraws.length - 1]?.dateStr}`
   );
 
+  updateNextResult();
   renderAll();
 }
 
@@ -148,11 +178,17 @@ function computeModel(seq, W) {
   // ── Recency frequency ──
   const recBlock = seq.slice(-safeW);
   const recCount = Object.fromEntries(DIGITS.map(d => [d, 0]));
-  recBlock.forEach(num => { recCount[num[0]] = (recCount[num[0]] || 0) + 1; recCount[num[1]] = (recCount[num[1]] || 0) + 1; });
+  recBlock.forEach(num => {
+    recCount[num[0]] = (recCount[num[0]] || 0) + 1;
+    recCount[num[1]] = (recCount[num[1]] || 0) + 1;
+  });
 
   // ── All-time base rate ──
   const baseCount = Object.fromEntries(DIGITS.map(d => [d, 0]));
-  seq.forEach(num => { baseCount[num[0]] = (baseCount[num[0]] || 0) + 1; baseCount[num[1]] = (baseCount[num[1]] || 0) + 1; });
+  seq.forEach(num => {
+    baseCount[num[0]] = (baseCount[num[0]] || 0) + 1;
+    baseCount[num[1]] = (baseCount[num[1]] || 0) + 1;
+  });
   const baseTotal = n * 2;  // 2 digits per draw
 
   // ── Gap / overdue ──
@@ -211,10 +247,11 @@ function cumulP(pDraw, N) {
   return 1 - Math.pow(1 - pDraw, N);
 }
 
-/** Get training slice based on trainWin setting */
+/** Get prediction slice — uses predCutoff (from start), not trainWin */
 function getSlice() {
-  if (trainWin === 0 || trainWin >= allDraws.length) return allDraws;
-  return allDraws.slice(-trainWin);
+  if (predCutoff > 0 && predCutoff < allDraws.length)
+    return allDraws.slice(0, predCutoff);
+  return allDraws;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -229,7 +266,10 @@ function renderAll() {
   renderStatCards(slice, model);
   if (!model) {
     ['digitBars','numPredTable','pairTable','lookaheadTable','btSummary','btGrid']
-      .forEach(id => { if ($(id)) $(id).innerHTML = '<p style="color:var(--muted-foreground);font-size:.8rem;padding:.75rem 0">Not enough data yet (minimum ' + MIN_HIST + ' draws).</p>'; });
+      .forEach(id => {
+        const el = $(id);
+        if (el) el.innerHTML = '<p style="color:var(--muted-foreground);font-size:.8rem;padding:.75rem 0">Not enough data yet (minimum ' + MIN_HIST + ' draws).</p>';
+      });
     return;
   }
 
@@ -255,6 +295,10 @@ function renderStatCards(slice, model) {
     topOCStr = model.digitMeta[topD].isOC ? ' ⚠ overconfident' : model.digitMeta[topD].isCalib ? ' ✓ calibrated' : '';
   }
 
+  const cutoffLabel = predCutoff > 0
+    ? `First ${Math.min(predCutoff, allDraws.length)} draws`
+    : 'All draws';
+
   $('statCards').innerHTML = `
     <div class="stat-card">
       <div class="stat-card-label">Total draws in DB</div>
@@ -262,9 +306,9 @@ function renderStatCards(slice, model) {
       <div class="stat-card-sub">${allDraws[0]?.dateStr} → ${last?.dateStr}</div>
     </div>
     <div class="stat-card">
-      <div class="stat-card-label">Training window</div>
+      <div class="stat-card-label">Prediction window</div>
       <div class="stat-card-value">${slice.length}</div>
-      <div class="stat-card-sub">${slice[0]?.dateStr} → ${slice[slice.length - 1]?.dateStr}</div>
+      <div class="stat-card-sub">${cutoffLabel} · ${slice[0]?.dateStr} → ${slice[slice.length - 1]?.dateStr}</div>
     </div>
     <div class="stat-card">
       <div class="stat-card-label">Last result (TWO)</div>
@@ -344,48 +388,13 @@ function renderDigitBars(model) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  SECTION 3a — NUMBER PREDICTION TABLE
+//  SECTION 3a — NUMBER PREDICTION TABLE  (removed; only pairs shown)
 // ═══════════════════════════════════════════════════════════════════════════
 function renderNumPredTable(model) {
-  const { numProbs, digitMeta } = model;
-  const sorted = Object.entries(numProbs).sort((a, b) => b[1] - a[1]).slice(0, topN);
-  const maxP   = sorted[0][1];
-
-  let html = `<table class="pt"><thead><tr>
-    <th>#</th><th>Number</th><th>Mirror</th><th colspan="2">Probability</th><th style="text-align:right">×base</th>
-  </tr></thead><tbody>`;
-
-  sorted.forEach(([num, prob], i) => {
-    const mir     = mirror(num);
-    const isSelf  = num === mir;
-    const aOC     = digitMeta[num[0]].isOC;
-    const bOC     = digitMeta[num[1]].isOC;
-    const anyOC   = aOC || bOC;
-    const basePr  = digitMeta[num[0]].baseFreq * digitMeta[num[1]].baseFreq;
-    const ratio   = basePr > 0 ? prob / basePr : 1;
-    const fillW   = (prob / maxP * 100).toFixed(1);
-    const barClr  = anyOC ? 'hsl(5,68%,52%)' : 'var(--primary)';
-
-    html += `
-      <tr title="${num} (mirror:${isSelf ? 'same' : mir}) · P=${pct2(prob)} · ×${ratio.toFixed(1)} vs uniform">
-        <td style="color:var(--muted-foreground);font-size:.7rem;padding-right:.25rem;">${i + 1}</td>
-        <td class="pt-num${anyOC ? ' oc-dim' : ''}">${num}${anyOC ? '<sup style="font-size:.55rem;color:hsl(5,68%,50%);">⚠</sup>' : ''}</td>
-        <td class="pt-mir">${isSelf ? '—' : mir}</td>
-        <td style="min-width:80px;">
-          <div style="font-family:'JetBrains Mono',monospace;font-size:.8rem;font-weight:600;">${pct2(prob)}</div>
-          <div class="pt-bar"><div class="pt-bar-fill" style="width:${fillW}%;background:${barClr};"></div></div>
-        </td>
-        <td style="width:0;padding:0;"></td>
-        <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:.75rem;font-weight:${ratio >= 2 ? '700' : '400'};color:${ratio >= 2 ? 'hsl(142,55%,40%)' : 'var(--muted-foreground)'};">×${ratio.toFixed(1)}</td>
-      </tr>`;
-  });
-
-  html += `</tbody></table>
-    <p style="font-size:.7rem;color:var(--muted-foreground);font-style:italic;margin-top:.5rem;line-height:1.55;">
-      ⚠ = digit scored &gt;24% (overconfident) — backtest hit only 13.8%. Mirror column: "59" covers "95" — both always valid.
-    </p>`;
-
-  $('numPredTable').innerHTML = html;
+  // Kept for DOM compatibility but section hidden in HTML
+  const el = $('numPredTable');
+  if (!el) return;
+  el.innerHTML = '';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -511,6 +520,7 @@ function renderLookahead(model) {
  * Run the walk-forward backtest.
  * For each draw index i (starting at MIN_HIST), train on draws 0…i-1 and predict draw i.
  * Returns array of prediction records.
+ * NOTE: always uses ALL draws regardless of predCutoff — backtest is a historical record.
  */
 function runBacktest() {
   const results = [];
@@ -522,32 +532,35 @@ function runBacktest() {
     if (!model) continue;
 
     const { numProbs, digitMeta } = model;
-    const sorted = Object.entries(numProbs).sort((a, b) => b[1] - a[1]);
-    const topNums = sorted.slice(0, topN).map(([n]) => n);
+    const sorted   = Object.entries(numProbs).sort((a, b) => b[1] - a[1]);
+    const topNums  = sorted.slice(0, topN).map(([n]) => n);
+    const actual   = allDraws[i].twoNum;
+    const dateStr  = allDraws[i].dateStr;
 
-    const actual = allDraws[i].twoNum;
-    const dateStr = allDraws[i].dateStr;
+    // Probability assigned to drawn pair at the time of prediction (max of AB / BA)
+    const pActual = Math.max(numProbs[actual] || 0, numProbs[mirror(actual)] || 0);
 
-    // Check current draw
-    const exactHit = topNums.includes(actual);
-    const pairHit  = topNums.includes(actual) || topNums.includes(mirror(actual));
+    // Top 4 digits by score at time of prediction
+    const topDigits = DIGITS.slice().sort((a, b) => digitMeta[b].prob - digitMeta[a].prob).slice(0, 4);
 
-    // Check +1, +2, +4 draws ahead (exact or pair hit in any of those draws)
+    const pairHit = topNums.includes(actual) || topNums.includes(mirror(actual));
+
+    // Returns the drawn number that matched (or null) within lookAhead draws
     function horizonHit(lookAhead) {
-      for (let k = 0; k < lookAhead && (i + k) < N; k++) {
+      for (let k = 1; k <= lookAhead && (i + k) < N; k++) {
         const a = allDraws[i + k].twoNum;
-        if (topNums.includes(a) || topNums.includes(mirror(a))) return true;
+        if (topNums.includes(a) || topNums.includes(mirror(a))) return a;
       }
-      return false;
+      return null;
     }
 
     results.push({
-      i, dateStr, actual, topNums,
-      exactHit, pairHit,
-      hit1: horizonHit(1),
+      i, dateStr, actual, topNums, topDigits,
+      pActual, pairHit,
       hit2: horizonHit(2),
       hit4: horizonHit(4),
       topProb: sorted[0][1],
+      digitMeta,   // retained for OC chip detection
     });
   }
   return results;
@@ -555,77 +568,121 @@ function runBacktest() {
 
 function renderBacktest() {
   const btAll = runBacktest();
-  if (!btAll.length) { $('btGrid').innerHTML = '<p style="color:var(--muted-foreground);font-size:.8rem;padding:.75rem 0">Not enough data.</p>'; return; }
+  if (!btAll.length) {
+    if ($('btGrid')) $('btGrid').innerHTML = '<p style="color:var(--muted-foreground);font-size:.8rem;padding:.75rem 0">Not enough data.</p>';
+    return;
+  }
 
-  // Summary stats
-  const totalN     = btAll.length;
-  const exactRate  = btAll.filter(r => r.exactHit).length / totalN;
-  const pairRate   = btAll.filter(r => r.pairHit).length  / totalN;
-  const hit2Rate   = btAll.filter(r => r.hit2).length     / totalN;
-  const hit4Rate   = btAll.filter(r => r.hit4).length     / totalN;
+  // ── Summary stats ──────────────────────────────────────────────────────
+  const totalN   = btAll.length;
+  const pairRate = btAll.filter(r => r.pairHit).length / totalN;
+  const hit2Rate = btAll.filter(r => r.hit2).length    / totalN;
+  const hit4Rate = btAll.filter(r => r.hit4).length    / totalN;
 
-  $('btSummary').innerHTML = `
-    <div class="bt-sum-item">
-      <div class="bt-sum-lbl">Predictions tested</div>
-      <div class="bt-sum-val">${totalN}</div>
-    </div>
-    <div class="bt-sum-item">
-      <div class="bt-sum-lbl">Exact hit (single draw)</div>
-      <div class="bt-sum-val" style="color:${exactRate > 0.055 ? 'hsl(142,55%,40%)' : 'var(--foreground)'};">${(exactRate * 100).toFixed(1)}%</div>
-    </div>
-    <div class="bt-sum-item">
-      <div class="bt-sum-lbl">Pair hit (AB or BA)</div>
-      <div class="bt-sum-val" style="color:${pairRate > 0.055 ? 'hsl(142,55%,40%)' : 'var(--foreground)'};">${(pairRate * 100).toFixed(1)}%</div>
-    </div>
-    <div class="bt-sum-item">
-      <div class="bt-sum-lbl">Pair hit in next 2 draws</div>
-      <div class="bt-sum-val">${(hit2Rate * 100).toFixed(1)}%</div>
-    </div>
-    <div class="bt-sum-item">
-      <div class="bt-sum-lbl">Pair hit in next 4 draws</div>
-      <div class="bt-sum-val">${(hit4Rate * 100).toFixed(1)}%</div>
-    </div>
-    <div class="bt-sum-item">
-      <div class="bt-sum-lbl">Random baseline (top ${topN})</div>
-      <div class="bt-sum-val" style="color:var(--muted-foreground);">${(topN / 100 * 100).toFixed(0)}%</div>
-    </div>
-  `;
+  // Count draws where top prediction had ≥1 OC digit
+  const ocCount  = btAll.filter(r => {
+    const n = r.topNums[0] || '';
+    return n && (r.digitMeta[n[0]]?.isOC || r.digitMeta[n[1]]?.isOC);
+  }).length;
 
-  // Table — show only last btRows entries
+  const btSummaryEl = $('btSummary');
+  if (btSummaryEl) {
+    btSummaryEl.innerHTML = `
+      <div class="bt-sum-item">
+        <div class="bt-sum-lbl">Predictions tested</div>
+        <div class="bt-sum-val">${totalN}</div>
+      </div>
+      <div class="bt-sum-item">
+        <div class="bt-sum-lbl">Pair hit (single draw)</div>
+        <div class="bt-sum-val" style="color:${pairRate > 0.055 ? 'hsl(142,55%,40%)' : 'var(--foreground)'};">${(pairRate * 100).toFixed(1)}%</div>
+      </div>
+      <div class="bt-sum-item">
+        <div class="bt-sum-lbl">Pair hit in next 2 draws</div>
+        <div class="bt-sum-val">${(hit2Rate * 100).toFixed(1)}%</div>
+      </div>
+      <div class="bt-sum-item">
+        <div class="bt-sum-lbl">Pair hit in next 4 draws</div>
+        <div class="bt-sum-val">${(hit4Rate * 100).toFixed(1)}%</div>
+      </div>
+      <div class="bt-sum-item">
+        <div class="bt-sum-lbl">Random baseline (top ${topN})</div>
+        <div class="bt-sum-val" style="color:var(--muted-foreground);">${topN}%</div>
+      </div>
+      <div class="bt-sum-item">
+        <div class="bt-sum-lbl">Draws w/ OC top pick</div>
+        <div class="bt-sum-val" style="color:hsl(5,68%,48%);">${ocCount}</div>
+      </div>`;
+  }
+
+  // ── Table ──────────────────────────────────────────────────────────────
   const recent = btAll.slice(-btRows);
 
   let grid = `<div class="bt-hdr">
-    <div>Date</div><div>Drawn</div><div>Top predictions</div>
-    <div style="text-align:center">Exact</div>
+    <div>Date</div>
+    <div>Drawn</div>
+    <div>Prob</div>
+    <div>Digits pred→got</div>
+    <div>Top predictions <span style="font-weight:400;opacity:.65">(orange border = OC)</span></div>
     <div style="text-align:center">Pair</div>
-    <div style="text-align:center">+2</div>
-    <div style="text-align:center">+4</div>
+    <div style="text-align:center">+2 draw</div>
+    <div style="text-align:center">+4 draw</div>
   </div>`;
 
   recent.forEach(r => {
+    // ── Prediction chips ───────────────────────────────────────────────
     const chips = r.topNums.slice(0, 10).map(n => {
-      const isExact = n === r.actual;
-      const isPair  = !isExact && n === mirror(r.actual);
+      const isPair = n === r.actual || n === mirror(r.actual);
+      const isOC   = r.digitMeta[n[0]]?.isOC || r.digitMeta[n[1]]?.isOC;
       let cls = 'bt-chip';
-      if (isExact) cls += ' exact-hit';
-      else if (isPair) cls += ' pair-hit';
-      return `<span class="${cls}">${n}</span>`;
+      if      (isPair) cls += ' pair-hit';
+      else if (isOC)   cls += ' oc-pred';
+      return `<span class="${cls}" title="P=${pct2(r.digitMeta[n[0]]?.prob * r.digitMeta[n[1]]?.prob || 0)}">${n}</span>`;
     }).join('');
 
-    const exCell   = r.exactHit ? `<div class="bt-cell bt-yes">✓</div>`   : `<div class="bt-cell bt-no">—</div>`;
-    const pairCell = r.pairHit  ? `<div class="bt-cell bt-pair">✓</div>`  : `<div class="bt-cell bt-no">—</div>`;
-    const h2Cell   = r.hit2     ? `<div class="bt-cell bt-pair">✓</div>`  : `<div class="bt-cell bt-no">—</div>`;
-    const h4Cell   = r.hit4     ? `<div class="bt-cell bt-pair">✓</div>`  : `<div class="bt-cell bt-no">—</div>`;
+    // ── Digit column ───────────────────────────────────────────────────
+    const actualDs  = [r.actual[0], r.actual[1]];
+    const predDigStr = r.topDigits.map(d => {
+      const hit = actualDs.includes(d);
+      return `<span style="font-weight:${hit ? '700' : '400'};color:${hit ? 'hsl(142,55%,38%)' : 'var(--muted-foreground)'}">${d}</span>`;
+    }).join('·');
+    const gotDigStr = actualDs.map(d => {
+      const predicted = r.topDigits.includes(d);
+      return `<span style="color:${predicted ? 'hsl(142,55%,38%)' : 'var(--foreground)'};">${d}</span>`;
+    }).join('');
 
-    grid += `<div class="bt-row">
+    // ── Cells ──────────────────────────────────────────────────────────
+    const pairCell = r.pairHit
+      ? `<div class="bt-cell bt-yes">✓</div>`
+      : `<div class="bt-cell bt-no">—</div>`;
+
+    const h2Cell = r.hit2
+      ? `<div class="bt-cell bt-hit-num">${r.hit2}</div>`
+      : `<div class="bt-cell bt-no">—</div>`;
+
+    const h4Cell = r.hit4
+      ? `<div class="bt-cell bt-hit-num">${r.hit4}</div>`
+      : `<div class="bt-cell bt-no">—</div>`;
+
+    // Colour model probability — green if above 2% (rough pair baseline)
+    const pAbove  = r.pActual > 0.02;
+    const pColor  = pAbove ? 'hsl(142,55%,38%)' : 'var(--muted-foreground)';
+
+    // Flag row as overconfident if top prediction had OC digit
+    const topN0 = r.topNums[0] || '';
+    const rowOC = topN0 && (r.digitMeta[topN0[0]]?.isOC || r.digitMeta[topN0[1]]?.isOC);
+
+    grid += `<div class="bt-row${rowOC ? ' bt-row-oc' : ''}">
       <div class="bt-date">${r.dateStr}</div>
-      <div class="bt-actual" style="color:${r.pairHit ? 'hsl(142,55%,40%)' : r.exactHit ? 'var(--primary)' : 'var(--foreground)'};">${r.actual}</div>
+      <div class="bt-actual" style="color:${r.pairHit ? 'hsl(142,55%,40%)' : 'var(--foreground)'}">${r.actual}</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:${pColor};white-space:nowrap;">${pct2(r.pActual)}</div>
+      <div style="font-size:.68rem;font-family:'JetBrains Mono',monospace;white-space:nowrap;">${predDigStr}→${gotDigStr}</div>
       <div class="bt-chips">${chips}</div>
-      ${exCell}${pairCell}${h2Cell}${h4Cell}
+      ${pairCell}${h2Cell}${h4Cell}
     </div>`;
   });
 
-  $('btGrid').innerHTML = grid;
+  const btGridEl = $('btGrid');
+  if (btGridEl) btGridEl.innerHTML = grid;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

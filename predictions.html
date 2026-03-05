@@ -17,6 +17,13 @@
     }
     .select-input:focus { outline: 2px solid var(--primary); outline-offset: 2px; }
 
+    input[type="number"].select-input {
+      cursor: text;
+      width: 8rem;
+    }
+    input[type="number"].select-input::-webkit-inner-spin-button,
+    input[type="number"].select-input::-webkit-outer-spin-button { opacity: 1; }
+
     .status-bar { display:flex; align-items:center; gap:.75rem; font-size:.75rem; color:var(--muted-foreground); padding:.5rem 0; flex-wrap:wrap; margin-top:.75rem; }
     .status-dot { width:.5rem; height:.5rem; border-radius:50%; background:var(--muted-foreground); flex-shrink:0; }
     .status-dot.live { background:#22c55e; box-shadow:0 0 0 3px #22c55e22; }
@@ -32,8 +39,6 @@
     .pred-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem 1.5rem; box-shadow:var(--shadow-sm); margin-top:1.25rem; }
     .pred-card-title { font-size:.9375rem; font-weight:600; margin-bottom:.25rem; }
     .pred-card-sub { font-size:.75rem; color:var(--muted-foreground); margin-bottom:1rem; line-height:1.65; }
-    .two-col { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-top:1.25rem; }
-    @media (max-width:860px) { .two-col { grid-template-columns:1fr; } }
 
     .header-title { font-size:1.75rem; font-weight:600; letter-spacing:-.025em; }
     .header-subtitle { font-size:.875rem; color:var(--muted-foreground); margin-top:.25rem; }
@@ -55,6 +60,27 @@
     .cpill-red { background:hsl(5,75%,90%); color:hsl(5,68%,30%); }
     .dark .cpill-red { background:hsl(5,36%,20%); color:hsl(5,68%,64%); }
     .cpill-muted { background:var(--border); color:var(--muted-foreground); }
+
+    /* Training window static display */
+    .trainwin-static {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .8125rem;
+      font-weight: 600;
+      color: var(--muted-foreground);
+      padding: .375rem .625rem;
+      background: var(--background);
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius)*.75);
+      display: inline-block;
+    }
+
+    /* Next result display (below cutoff input) */
+    .next-result-row {
+      margin-top: .5rem;
+      font-size: .8125rem;
+      min-height: 1.4rem;
+      color: var(--foreground);
+    }
 
     /* ── Digit bars ─────────────────────────────────────────────── */
     .dbar-hdr, .dbar-row {
@@ -78,7 +104,7 @@
       .dbar-hdr > *:nth-child(n+5), .dbar-row > *:nth-child(n+5) { display:none; }
     }
 
-    /* ── Number prediction table ──────────────────────────────── */
+    /* ── Pair table ───────────────────────────────────────────── */
     .pt { width:100%; border-collapse:collapse; font-size:.8125rem; }
     .pt thead th { padding:.4rem .5rem; text-align:left; border-bottom:2px solid var(--border); font-size:.6rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted-foreground); font-weight:600; white-space:nowrap; }
     .pt td { padding:.35rem .5rem; border-bottom:1px solid var(--border); vertical-align:middle; }
@@ -89,9 +115,6 @@
     .pt-bar { height:5px; background:var(--border); border-radius:3px; margin-top:3px; }
     .pt-bar-fill { height:100%; border-radius:3px; }
     .oc-dim { opacity:.55; }
-
-    /* ── Unordered pair table ─────────────────────────────────── */
-    .pair-note { font-size:.7rem; color:var(--muted-foreground); font-style:italic; margin-top:.5rem; line-height:1.55; }
 
     /* ── Lookahead table ──────────────────────────────────────── */
     .la-tbl { width:100%; border-collapse:collapse; font-size:.8125rem; margin-top:.75rem; }
@@ -113,24 +136,60 @@
     .bt-sum-lbl { font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted-foreground); }
     .bt-sum-val { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.9375rem; }
     .bt-wrap { overflow-x:auto; }
-    .bt-grid { min-width:660px; }
-    .bt-hdr, .bt-row { display:grid; grid-template-columns:6.5rem 3.5rem 1fr 3.75rem 3.75rem 3.75rem 3.75rem; gap:.4rem; padding:.35rem .625rem; align-items:center; }
-    .bt-hdr { border-bottom:2px solid var(--border); font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted-foreground); }
+    .bt-grid { min-width:760px; }
+
+    /* 8 columns: Date | Drawn | Prob | Digits | Chips | Pair | +2 | +4 */
+    .bt-hdr, .bt-row {
+      display:grid;
+      grid-template-columns: 6.25rem 3.25rem 4.5rem 7.5rem 1fr 3.25rem 4rem 4rem;
+      gap:.4rem; padding:.35rem .625rem; align-items:center;
+    }
+    .bt-hdr { border-bottom:2px solid var(--border); font-size:.58rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted-foreground); }
     .bt-row { border-bottom:1px solid var(--border); font-size:.8125rem; }
     .bt-row:last-child { border-bottom:none; }
     .bt-row:hover { background:var(--background); }
-    .bt-date { font-family:'JetBrains Mono',monospace; font-size:.7rem; color:var(--muted-foreground); }
+
+    /* Overconfident row: subtle left border highlight */
+    .bt-row-oc { border-left:2px solid hsl(38,78%,52%); padding-left:calc(.625rem - 2px); }
+
+    .bt-date   { font-family:'JetBrains Mono',monospace; font-size:.7rem; color:var(--muted-foreground); }
     .bt-actual { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.9375rem; }
-    .bt-chips { display:flex; flex-wrap:wrap; gap:.2rem; }
-    .bt-chip { font-family:'JetBrains Mono',monospace; font-size:.64rem; font-weight:500; padding:.1rem .28rem; border-radius:3px; border:1px solid var(--border); background:var(--background); }
-    .bt-chip.exact-hit { background:var(--primary); border-color:var(--primary); color:#fff; font-weight:700; }
-    .bt-chip.pair-hit  { background:hsl(142,55%,44%); border-color:hsl(142,55%,44%); color:#fff; font-weight:700; }
-    .bt-cell { text-align:center; font-size:.7rem; font-weight:600; }
-    .bt-yes  { color:hsl(142,55%,38%); }
-    .dark .bt-yes  { color:hsl(142,60%,60%); }
-    .bt-pair { color:hsl(215,75%,50%); }
-    .dark .bt-pair { color:hsl(215,75%,65%); }
-    .bt-no   { color:var(--muted-foreground); opacity:.3; }
+    .bt-chips  { display:flex; flex-wrap:wrap; gap:.2rem; }
+    .bt-cell   { text-align:center; font-size:.7rem; font-weight:600; }
+    .bt-yes    { color:hsl(142,55%,38%); }
+    .dark .bt-yes { color:hsl(142,60%,60%); }
+    .bt-no     { color:var(--muted-foreground); opacity:.3; }
+
+    /* +2/+4 hit cell shows the actual number drawn */
+    .bt-hit-num {
+      text-align:center;
+      font-family:'JetBrains Mono',monospace;
+      font-size:.75rem;
+      font-weight:700;
+      color:hsl(142,55%,38%);
+    }
+    .dark .bt-hit-num { color:hsl(142,60%,60%); }
+
+    /* Chip variants */
+    .bt-chip {
+      font-family:'JetBrains Mono',monospace; font-size:.64rem; font-weight:500;
+      padding:.1rem .28rem; border-radius:3px;
+      border:1px solid var(--border); background:var(--background);
+    }
+    .bt-chip.pair-hit {
+      background:hsl(142,55%,44%); border-color:hsl(142,55%,44%); color:#fff; font-weight:700;
+    }
+    /* OC chip: orange border, no fill — was overconfident at time of prediction */
+    .bt-chip.oc-pred {
+      border:2px solid hsl(38,78%,52%);
+      color:hsl(38,68%,40%);
+      background: hsl(38,88%,96%);
+    }
+    .dark .bt-chip.oc-pred {
+      border-color:hsl(38,78%,52%);
+      color:hsl(38,78%,64%);
+      background:hsl(38,36%,14%);
+    }
 
     /* Calibration notes */
     .calib-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; margin-top:.875rem; }
@@ -185,18 +244,14 @@
         <div class="control-panel">
           <div class="controls-grid">
 
+            <!-- Training window: fixed, not editable -->
             <div class="control-group">
-              <label class="control-label" for="trainWinSel">Training window</label>
-              <select id="trainWinSel" class="select-input">
-                <option value="0">All draws</option>
-                <option value="100" selected>Last 100 draws</option>
-                <option value="150">Last 150 draws</option>
-                <option value="200">Last 200 draws</option>
-                <option value="300">Last 300 draws</option>
-              </select>
-              <span class="helper-text">Draws used for base rate &amp; gap stats</span>
+              <label class="control-label">Training window</label>
+              <span class="trainwin-static">All draws</span>
+              <span class="helper-text">Fixed — uses all available draws</span>
             </div>
 
+            <!-- Recency window slider -->
             <div class="control-group" style="min-width:210px;">
               <label class="control-label">Recency window W = <span id="recLbl">20</span></label>
               <div class="range-wrap">
@@ -206,6 +261,7 @@
               <span class="helper-text">Short-term frequency signal (weight 35 %)</span>
             </div>
 
+            <!-- Top N select -->
             <div class="control-group">
               <label class="control-label" for="topNSel">Numbers in prediction list</label>
               <select id="topNSel" class="select-input">
@@ -215,6 +271,7 @@
               </select>
             </div>
 
+            <!-- Backtest rows -->
             <div class="control-group">
               <label class="control-label" for="btRowsSel">Backtest rows shown</label>
               <select id="btRowsSel" class="select-input">
@@ -224,6 +281,14 @@
                 <option value="50">Last 50</option>
               </select>
               <span class="helper-text">Historical prediction snapshots to show</span>
+            </div>
+
+            <!-- Prediction cutoff window -->
+            <div class="control-group">
+              <label class="control-label" for="predCutoffInput">Prediction cutoff (draws from start)</label>
+              <input type="number" id="predCutoffInput" class="select-input" min="31" step="1" placeholder="All (current)">
+              <span class="helper-text">Predictions use first X draws — simulates model state at that draw. Leave blank = current.</span>
+              <div id="nextResultDisplay" class="next-result-row"></div>
             </div>
 
           </div>
@@ -258,26 +323,20 @@
       <div id="digitBars"></div>
     </div>
 
-    <!-- 3. Two-col: number predictions + unordered pairs -->
-    <div class="two-col">
-      <div class="pred-card" style="margin-top:0;">
-        <div class="pred-card-title">Number Predictions — Next Draw</div>
-        <div class="pred-card-sub">
-          P(number "AB") = P(digit A) × P(digit B). Pod placement is random, so "06" = "60" (symmetry confirmed Z=−1.52).
-          Both are always listed as a pair. ⚠ = contains a digit scored &gt;24 % — treat with scepticism.
-        </div>
-        <div id="numPredTable"></div>
+    <!-- 3. Top Unordered Pairs -->
+    <div class="pred-card">
+      <div class="pred-card-title">Top Unordered Pairs to Track</div>
+      <div class="pred-card-sub">
+        Each row is <strong>one bet covering two tickets</strong> (AB and BA). Combined P = 2 × P(A) × P(B) for A≠B.
+        Buying "59" means "95" is also covered — always purchase both orientations.
+        Symmetry confirmed (Z=−1.52): "06" and "60" are statistically equivalent.
+        ⚠ OC = at least one digit is overconfident (&gt;24 % score) — treat with extra scepticism.
       </div>
-
-      <div class="pred-card" style="margin-top:0;">
-        <div class="pred-card-title">Top Unordered Pairs to Track</div>
-        <div class="pred-card-sub">
-          Each row is <strong>one bet covering two tickets</strong> (AB and BA). Combined P = 2 × P(A) × P(B) for A≠B.
-          Buying "59" means "95" is covered — both should always be purchased together.
-        </div>
-        <div id="pairTable"></div>
-      </div>
+      <div id="pairTable"></div>
     </div>
+
+    <!-- Hidden: numPredTable still in DOM for JS compatibility -->
+    <div id="numPredTable" style="display:none;"></div>
 
     <!-- 4. N-draw lookahead -->
     <div class="pred-card">
@@ -296,11 +355,22 @@
     <div class="pred-card">
       <div class="pred-card-title">Walk-Forward Backtest Result Window</div>
       <div class="pred-card-sub">
-        Model is retrained on <em>all prior draws only</em> at each step — no look-ahead bias.
-        <strong>Exact</strong> (blue chip) = drawn number is in the top prediction list.
-        <strong>Pair</strong> (green chip) = drawn number <em>or its mirror</em> is in the list (this is the recommended metric given confirmed symmetry).
-        <strong>+1 / +2 / +4</strong> = did an exact or pair hit occur within that many draws of the prediction point?
-        Use the pair column — it accounts for the 06↔60 symmetry finding.
+        Model retrained on <em>all prior draws only</em> at each step — no look-ahead bias. Always uses the full draw history regardless of prediction cutoff setting above.
+        <br>
+        <strong>Drawn</strong> = actual TWO result for that draw.
+        <strong>Prob</strong> = probability the model assigned to that pair before the draw.
+        <strong>Digits pred→got</strong> = top 4 predicted digits (green = matched actual) → actual digits drawn (green = was predicted).
+        <strong>Pair</strong> ✓ = drawn number or its mirror was in the prediction list.
+        <strong>+2 / +4</strong> = the actual number drawn within 2 or 4 subsequent draws that matched a prediction (— = no hit).
+        <br>
+        <span style="display:inline-flex;align-items:center;gap:.4rem;margin-top:.3rem;">
+          <span class="bt-chip oc-pred" style="font-size:.65rem;">47</span>
+          <span>Orange-bordered chip = model was overconfident on this number at time of prediction.</span>
+        </span>
+        <span style="display:inline-flex;align-items:center;gap:.4rem;margin-left:1rem;">
+          <span style="display:inline-block;width:3px;height:1rem;background:hsl(38,78%,52%);border-radius:1px;"></span>
+          <span>Amber left border on row = top prediction had an overconfident digit.</span>
+        </span>
       </div>
       <div id="btSummary" class="bt-summary"></div>
       <div class="bt-wrap"><div id="btGrid" class="bt-grid"></div></div>
@@ -353,6 +423,7 @@
       if (href === page || (page === '' && href === 'index.html')) el.classList.add('nav-active');
     });
   })();
+
   /* Collapsible panel */
   (function () {
     var btn  = document.getElementById('predPanelBtn');
@@ -360,10 +431,10 @@
     var sumEl = document.getElementById('predPanelSum');
     if (!btn || !body) return;
     function getSummary() {
-      var tw = (document.getElementById('trainWinSel')||{}).value || '100';
-      var rw = (document.getElementById('recLbl')||{}).textContent || '20';
-      var tn = (document.getElementById('topNSel')||{}).value || '15';
-      return 'win ' + (tw === '0' ? 'all' : tw) + ' · W=' + rw + ' · top ' + tn;
+      var rw = (document.getElementById('recLbl') || {}).textContent || '20';
+      var tn = (document.getElementById('topNSel') || {}).value || '15';
+      var cutoff = (document.getElementById('predCutoffInput') || {}).value || '';
+      return 'win all · W=' + rw + ' · top ' + tn + (cutoff ? ' · cutoff ' + cutoff : '');
     }
     function updateSummary() {
       if (sumEl) sumEl.textContent = btn.classList.contains('is-open') ? '' : (' · ' + getSummary());
@@ -381,6 +452,7 @@
       updateSummary();
     });
     document.addEventListener('change', updateSummary);
+    document.addEventListener('input', updateSummary);
     updateSummary();
   })();
   </script>
