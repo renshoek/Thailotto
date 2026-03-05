@@ -279,7 +279,7 @@ else if (m.isElev)  { barColor = ‘hsl(38,78%,52%)’;  pill = `<span class="cp
 else if (m.isCalib) { barColor = ‘hsl(142,55%,44%)’; pill = `<span class="cpill cpill-green">Calibrated ✓</span>`; }
 else                { barColor = ‘var(–primary)’;   pill = `<span class="cpill cpill-muted">Low</span>`; }
 
-```
+
 const fillPct      = (m.prob / maxP * 100).toFixed(1);
 const baselinePct  = Math.min(99, (0.10 / maxP * 100)).toFixed(1);
 const overdueColor = m.ovRatio >= 2 ? 'hsl(5,68%,48%)' : m.ovRatio >= 1 ? 'hsl(38,78%,42%)' : 'var(--muted-foreground)';
@@ -299,7 +299,6 @@ row.innerHTML = `
   <div class="dbar-since" style="color:${overdueColor};${m.ovRatio >= 2 ? 'font-weight:600;' : ''}">${overdueStr}</div>
   <div>${pill}</div>`;
 wrap.appendChild(row);
-```
 
 });
 }
@@ -335,8 +334,6 @@ const avgG   = gaps.length >= 2 ? Math.round(gaps.reduce((a, b) => a + b, 0) / g
 const sinceStr = since === null ? ‘never’ : since === 0 ? ‘0 (last)’ : `${since}`;
 const avgStr   = avgG !== null ? ` avg ${avgG}` : ‘’;
 const sinceClr = since === null ? ‘hsl(5,68%,48%)’ : since > 40 ? ‘hsl(38,78%,42%)’ : ‘var(–muted-foreground)’;
-
-```
 html += `
   <tr title="${num}${isSelf ? '' : ' + ' + mir} · P=${pct2(prob)} · ×${ratio.toFixed(1)} · last ${sinceStr} draws ago${avgStr}">
     <td style="color:var(--muted-foreground);font-size:.7rem;">${i + 1}</td>
@@ -350,7 +347,6 @@ html += `
     <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:.75rem;font-weight:${ratio >= 2 ? '700' : '400'};color:${ratio >= 2 ? 'hsl(142,55%,40%)' : 'var(--muted-foreground)'};">×${ratio.toFixed(1)}</td>
     <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:.68rem;color:${sinceClr};">${sinceStr}${avgStr}</td>
   </tr>`;
-```
 
 });
 
@@ -408,7 +404,6 @@ const isOC = m.isOC;
 const overdueColor = m.ovRatio >= 2 ? ‘hsl(5,68%,48%)’ : m.ovRatio >= 1 ? ‘hsl(38,78%,42%)’ : ‘var(–muted-foreground)’;
 const overdueStr   = `${m.since} / ${m.avgGap.toFixed(1)}${m.ovRatio > 1 ? ` ×${m.ovRatio.toFixed(1)}` : ''}`;
 
-```
 html += `<tr>
   <td style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:1.0625rem;">${d}</td>
   <td style="font-family:'JetBrains Mono',monospace;font-size:.8rem;color:${isOC ? 'hsl(5,68%,48%)' : 'var(--foreground)'};">${pct1(m.prob)}</td>`;
@@ -433,7 +428,6 @@ else                pill = `<span class="cpill cpill-muted">Low</span>`;
 html += `
   <td style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:${overdueColor};font-weight:${m.ovRatio >= 2 ? '600' : '400'};">${overdueStr}</td>
   <td>${pill}</td></tr>`;
-```
 
 });
 
@@ -453,7 +447,6 @@ const seq   = allDraws.slice(0, i).map(d => d.twoNum);
 const model = computeModel(seq, recW);
 if (!model) continue;
 
-```
 const { numProbs, digitMeta } = model;
 const sortedNums = Object.entries(numProbs).sort((a, b) => b[1] - a[1]);
 const topNums    = sortedNums.slice(0, topN).map(([n]) => n);
@@ -483,7 +476,6 @@ function firstHit(ws) {
 }
 
 results.push({ i, dateStr, actual, actualProb, pairHit, matchedNum, topListMeta, top3digits, hit2: firstHit(2), hit4: firstHit(4) });
-```
 
 }
 return results;
@@ -522,7 +514,6 @@ let grid = `<div class="bt-hdr">
 recent.forEach(r => {
 const actualDigits = new Set([r.actual[0], r.actual[1]]);
 
-```
 const digitCol = r.top3digits.map(({ d, prob, isOC }) => {
   const hit = actualDigits.has(d);
   return `<div style="display:flex;gap:.2rem;align-items:baseline;">
@@ -563,7 +554,6 @@ grid += `<div class="bt-row">
   <div class="bt-chips">${chips}</div>
   ${pairCell}${hitCell(r.hit2)}${hitCell(r.hit4)}
 </div>`;
-```
 
 });
 
