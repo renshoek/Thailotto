@@ -1,7 +1,6 @@
 ‘use strict’;
 // ════════════════════════════════════════════════════════════════════════════
 //  Thai Lotto · Two-Digit Prize — Probability Model (predictions.js)
-//  Self-contained: loads directly from lottonumbers/ (no Analyzer dependency)
 // ════════════════════════════════════════════════════════════════════════════
 
 const DIGITS        = ‘0123456789’.split(’’);
@@ -17,9 +16,7 @@ const MIN_HIST      = 30;
 
 const DB_NAME    = ‘thai-lotto-agg-db’;
 const STORE_NAME = ‘agg-store’;
-const CACHE_KEY  = ‘perFileAggMap_v2’;  // Analyzer’s cache (fallback)
-const PRED_KEY   = ‘predDraws_v1’;      // Predictions’ own lightweight cache
-const CACHE_TTL  = 24 * 60 * 60 * 1000;
+const CACHE_KEY  = ‘perFileAggMap_v2’;
 
 // ── State ─────────────────────────────────────────────────────────────────
 let allDraws = [];
@@ -71,8 +68,8 @@ if (cutoffN <= 0) {
 el.innerHTML = `Using all <strong>${allDraws.length}</strong> draws for training.`;
 return;
 }
-const eff  = Math.min(cutoffN, allDraws.length);
-const end  = allDraws[eff - 1];
+const eff = Math.min(cutoffN, allDraws.length);
+const end = allDraws[eff - 1];
 if (eff >= allDraws.length) {
 el.innerHTML = `Train: all ${allDraws.length} draws (to ${end.dateStr}) · Next: <strong style="color:var(--muted-foreground)">unknown (future)</strong>`;
 } else {
@@ -82,195 +79,57 @@ el.innerHTML = `Train: draws 1–${eff} (to <em>${end.dateStr}</em>) · `
 }
 }
 
-// ── Progress bar helpers (null-safe) ──────────────────────────────────────
-function showProgress(show) {
-const el = $(‘loadProgress’);
-if (!el) return;
-el.style.display = show ? ‘flex’ : ‘none’;
-if (!show) {
-const bar = $(‘loadBar’);
-const lbl = $(‘loadLabel’);
-if (bar) bar.style.width = ‘0%’;
-if (lbl) lbl.textContent = ‘’;
-}
-}
-function setProgress(done, total) {
-const bar = $(‘loadBar’);
-const lbl = $(‘loadLabel’);
-if (bar) bar.style.width = Math.round(done / total * 100) + ‘%’;
-if (lbl) lbl.textContent = `${done} / ${total}`;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  INDEXEDDB
-// ═══════════════════════════════════════════════════════════════════════════
-function openDb() {
-return new Promise((resolve, reject) => {
+// ── IndexedDB loader (same as old working version) ────────────────────────
+async function loadCache() {
+return new Promise(resolve => {
 const req = indexedDB.open(DB_NAME, 1);
 req.onupgradeneeded = ev => {
 if (!ev.target.result.objectStoreNames.contains(STORE_NAME))
 ev.target.result.createObjectStore(STORE_NAME);
 };
-req.onsuccess = () => resolve(req.result);
-req.onerror   = () => reject(req.error);
+req.onsuccess = ev => {
+const tx  = ev.target.result.transaction(STORE_NAME, ‘readonly’);
+const get = tx.objectStore(STORE_NAME).get(CACHE_KEY);
+get.onsuccess = () => resolve(get.result || null);
+get.onerror   = () => resolve(null);
+};
+req.onerror = () => resolve(null);
 });
 }
-async function idbGet(key) {
-try {
-const db = await openDb();
-return await new Promise(resolve => {
-const req = db.transaction(STORE_NAME, ‘readonly’).objectStore(STORE_NAME).get(key);
-req.onsuccess = () => resolve(req.result || null);
-req.onerror   = () => resolve(null);
-});
-} catch { return null; }
+
+// ── Init ──────────────────────────────────────────────────────────────────
+async function init() {
+setStatus(’’, ‘Loading data from cache…’);
+const cached = await loadCache();
+
+if (!cached || !cached.data || !Object.keys(cached.data).length) {
+setStatus(‘empty’, ‘No data. Open the Analyzer page first to load data, then return here.’);
+const main = $(‘mainContent’);
+if (main) {
+const statCards = $(‘statCards’);
+if (statCards) {
+statCards.insertAdjacentHTML(‘beforebegin’, ` <div style="text-align:center;padding:4rem 2rem;color:var(--muted-foreground)"> <h2 style="color:var(--foreground);font-size:1.25rem;margin-bottom:.75rem">No data loaded</h2> <p>Please open <a href="index.html" style="color:var(--primary)">the Analyzer</a> first to cache lottery data.</p> </div>`);
 }
-async function idbSet(key, value) {
-try {
-const db = await openDb();
-await new Promise(resolve => {
-const tx = db.transaction(STORE_NAME, ‘readwrite’);
-tx.objectStore(STORE_NAME).put(value, key);
-tx.oncomplete = resolve;
-tx.onerror    = resolve;
-});
-} catch { /* ignore */ }
+}
+return;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  DATA FETCHING
-// ═══════════════════════════════════════════════════════════════════════════
-function buildCandidateDates() {
-const DRAW_DAYS = [1, 2, 3, 14, 15, 16, 17, 30, 31];
-const dates = [];
-const today = new Date();
-for (let y = 2006; y <= today.getFullYear(); y++) {
-for (let m = 1; m <= 12; m++) {
-for (const d of DRAW_DAYS) {
-if (y === 2006 && m === 12 && d < 30) continue;
-const ds = `${y}-${pad2(m)}-${pad2(d)}`;
-if (new Date(ds + ‘T12:00’) > today) continue;
-dates.push(ds);
-}
-}
-}
-return dates;
-}
-
-function parseTwoFromText(text) {
-for (const line of text.split(/\r?\n/)) {
-const parts = line.trim().split(/\s+/);
-if (parts[0] === ‘TWO’ && parts[1] && /^\d{2}$/.test(parts[1])) return parts[1];
-}
-return null;
-}
-
-async function fetchDates(datestrs, concurrency, onProgress) {
-const results = {};
-let idx = 0, done = 0;
-async function worker() {
-while (true) {
-const i = idx++;
-if (i >= datestrs.length) return;
-const ds = datestrs[i];
-try {
-const resp = await fetch(`lottonumbers/${ds}.txt`);
-if (resp.ok) {
-const twoNum = parseTwoFromText(await resp.text());
-if (twoNum) results[ds] = twoNum;
-}
-} catch { /* file missing or network error */ }
-done++;
-onProgress(done, datestrs.length);
-}
-}
-await Promise.all(Array.from({ length: Math.min(concurrency, datestrs.length) }, worker));
-return results;
-}
-
-function buildDrawsFromAnalyzerCache(data) {
-return Object.entries(data)
+const map = new Map(Object.entries(cached.data));
+allDraws = Array.from(map.entries())
 .map(([dateStr, agg]) => {
 const nums = parseNums((agg.results || {}).TWO || ‘’).filter(n => /^\d{2}$/.test(n));
 return { dateStr, twoNum: nums[0] || null };
 })
 .filter(d => d.twoNum)
 .sort((a, b) => a.dateStr.localeCompare(b.dateStr));
-}
 
-// ── Init ──────────────────────────────────────────────────────────────────
-async function init() {
-setStatus(’’, ‘Checking cache…’);
-showProgress(false);
-
-// 1. Use own lightweight cache if fresh
-const predCache = await idbGet(PRED_KEY);
-if (predCache && predCache.fetchedAt && (Date.now() - predCache.fetchedAt) < CACHE_TTL && predCache.draws?.length >= MIN_HIST) {
-allDraws = predCache.draws;
-finishInit();
-silentRefresh(predCache.draws).catch(() => {});
-return;
-}
-
-// 2. Try Analyzer’s full cache
-const analyzerCache = await idbGet(CACHE_KEY);
-if (analyzerCache?.data && Object.keys(analyzerCache.data).length) {
-const draws = buildDrawsFromAnalyzerCache(analyzerCache.data);
-if (draws.length >= MIN_HIST) {
-allDraws = draws;
-await idbSet(PRED_KEY, { fetchedAt: Date.now(), draws });
-finishInit();
-silentRefresh(draws).catch(() => {});
-return;
-}
-}
-
-// 3. Fetch directly from lottonumbers/
-await fetchAll();
-}
-
-async function fetchAll() {
-const candidates = buildCandidateDates();
-setStatus(’’, `Fetching ${candidates.length} draw files from lottonumbers/…`);
-showProgress(true);
-
-const fetched = await fetchDates(candidates, 25, setProgress);
-
-showProgress(false);
-
-allDraws = Object.entries(fetched)
-.map(([dateStr, twoNum]) => ({ dateStr, twoNum }))
-.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
-
-if (allDraws.length) await idbSet(PRED_KEY, { fetchedAt: Date.now(), draws: allDraws });
-finishInit();
-}
-
-async function silentRefresh(existing) {
-const have    = new Set(existing.map(d => d.dateStr));
-const missing = buildCandidateDates().filter(ds => !have.has(ds));
-if (!missing.length) return;
-
-const fetched = await fetchDates(missing, 20, () => {});
-if (!Object.keys(fetched).length) return;
-
-const merged = [
-...existing,
-...Object.entries(fetched).map(([dateStr, twoNum]) => ({ dateStr, twoNum }))
-].sort((a, b) => a.dateStr.localeCompare(b.dateStr));
-
-await idbSet(PRED_KEY, { fetchedAt: Date.now(), draws: merged });
-if (merged.length !== existing.length) { allDraws = merged; finishInit(); }
-}
-
-function finishInit() {
-if (!allDraws.length) {
-setStatus(‘empty’, ‘No TWO draw data found. Make sure lottonumbers/ is accessible from this page.’);
-return;
-}
+const age = cached.fetchedAt ? Math.round((Date.now() - cached.fetchedAt) / 60000) : null;
 setStatus(‘live’,
-`${allDraws.length} TWO draws · ${allDraws[0].dateStr} → ${allDraws[allDraws.length - 1].dateStr}`
+`${allDraws.length} TWO draws loaded` +
+(age !== null ? ` · cached ${age < 60 ? age + ' min' : Math.round(age / 60) + 'h'} ago` : ‘’) +
+` · ${allDraws[0]?.dateStr} → ${allDraws[allDraws.length - 1]?.dateStr}`
 );
+
 updateCutoffInfo();
 renderAll();
 }
@@ -278,7 +137,7 @@ renderAll();
 function setStatus(state, txt) {
 const dot  = $(‘statusDot’);
 const text = $(‘statusText’);
-if (dot)  dot.className  = ‘status-dot’ + (state === ‘live’ ? ’ live’ : ‘’);
+if (dot)  dot.className    = ‘status-dot’ + (state === ‘live’ ? ’ live’ : ‘’);
 if (text) text.textContent = txt;
 }
 
@@ -334,7 +193,7 @@ meta[d].isLow        = p < CALIB_LO;
 const numProbs = {};
 DIGITS.forEach(a => DIGITS.forEach(b => { numProbs[a + b] = digitProb[a] * digitProb[b]; }));
 
-// Per-number overdue
+// Per-number last seen
 const _ls = {}, numGapMap = {};
 seq.forEach((num, i) => {
 if (_ls[num] !== undefined) { numGapMap[num] = numGapMap[num] || []; numGapMap[num].push(i - _ls[num]); }
@@ -350,6 +209,7 @@ return { digitProb, digitMeta: meta, numProbs, numSince, numGapMap, n };
 }
 
 function cumulP(pDraw, N) { return 1 - Math.pow(1 - pDraw, N); }
+
 function getSlice() {
 if (cutoffN > 0 && cutoffN < allDraws.length) return allDraws.slice(0, cutoffN);
 return allDraws;
@@ -391,7 +251,7 @@ topDStr  = topD;
 topPStr  = pct1(model.digitProb[topD]);
 topOCStr = model.digitMeta[topD].isOC ? ’ ⚠ overconfident’ : model.digitMeta[topD].isCalib ? ’ ✓ calibrated’ : ‘’;
 }
-el.innerHTML = ` <div class="stat-card"> <div class="stat-card-label">Total draws in DB</div> <div class="stat-card-value">${total}</div> <div class="stat-card-sub">${allDraws[0]?.dateStr} → ${last?.dateStr}</div> </div> <div class="stat-card"> <div class="stat-card-label">Training window</div> <div class="stat-card-value">${slice.length}</div> <div class="stat-card-sub">${slice[0]?.dateStr} → ${slice[slice.length-1]?.dateStr}</div> </div> <div class="stat-card"> <div class="stat-card-label">Last result (TWO)</div> <div class="stat-card-value" style="font-family:'JetBrains Mono',monospace;color:var(--primary)">${last?.twoNum||'—'}</div> <div class="stat-card-sub">${last?.dateStr||''}</div> </div> <div class="stat-card"> <div class="stat-card-label">Top digit now</div> <div class="stat-card-value" style="font-family:'JetBrains Mono',monospace;${model?.digitMeta[topDStr]?.isOC?'color:hsl(5,68%,48%)':'color:var(--primary)'}">${topDStr}</div> <div class="stat-card-sub">${topPStr} model score${topOCStr}</div> </div>`;
+el.innerHTML = ` <div class="stat-card"> <div class="stat-card-label">Total draws in DB</div> <div class="stat-card-value">${total}</div> <div class="stat-card-sub">${allDraws[0]?.dateStr} → ${last?.dateStr}</div> </div> <div class="stat-card"> <div class="stat-card-label">Training window</div> <div class="stat-card-value">${slice.length}</div> <div class="stat-card-sub">${slice[0]?.dateStr} → ${slice[slice.length-1]?.dateStr}</div> </div> <div class="stat-card"> <div class="stat-card-label">Last result (TWO)</div> <div class="stat-card-value" style="font-family:'JetBrains Mono',monospace;color:var(--primary)">${last?.twoNum || '—'}</div> <div class="stat-card-sub">${last?.dateStr || ''}</div> </div> <div class="stat-card"> <div class="stat-card-label">Top digit now</div> <div class="stat-card-value" style="font-family:'JetBrains Mono',monospace;${model?.digitMeta[topDStr]?.isOC ? 'color:hsl(5,68%,48%)' : 'color:var(--primary)'}">${topDStr}</div> <div class="stat-card-sub">${topPStr} model score${topOCStr}</div> </div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -414,10 +274,10 @@ sorted.forEach(d => {
 const m   = digitMeta[d];
 const exc = m.excessVsBase >= 0 ? ‘+’ + pct1(m.excessVsBase) : pct1(m.excessVsBase);
 let barColor, pill;
-if      (m.isOC)    { barColor=‘hsl(5,68%,52%)’;   pill=`<span class="cpill cpill-red">OC ↓</span>`; }
-else if (m.isElev)  { barColor=‘hsl(38,78%,52%)’;  pill=`<span class="cpill cpill-amber">Elevated</span>`; }
-else if (m.isCalib) { barColor=‘hsl(142,55%,44%)’; pill=`<span class="cpill cpill-green">Calibrated ✓</span>`; }
-else                { barColor=‘var(–primary)’;   pill=`<span class="cpill cpill-muted">Low</span>`; }
+if      (m.isOC)    { barColor = ‘hsl(5,68%,52%)’;   pill = `<span class="cpill cpill-red">OC ↓</span>`; }
+else if (m.isElev)  { barColor = ‘hsl(38,78%,52%)’;  pill = `<span class="cpill cpill-amber">Elevated</span>`; }
+else if (m.isCalib) { barColor = ‘hsl(142,55%,44%)’; pill = `<span class="cpill cpill-green">Calibrated ✓</span>`; }
+else                { barColor = ‘var(–primary)’;   pill = `<span class="cpill cpill-muted">Low</span>`; }
 
 ```
 const fillPct      = (m.prob / maxP * 100).toFixed(1);
@@ -427,16 +287,16 @@ const overdueStr   = `${m.since} / ${m.avgGap.toFixed(1)}${m.ovRatio > 1 ? ` ×$
 
 const row = document.createElement('div');
 row.className = 'dbar-row';
-row.title = `Digit ${d}: score ${pct2(m.prob)} · base ${pct2(m.baseFreq)} · avg gap ${m.avgGap.toFixed(1)} · ${m.since} since last · ×${m.ovRatio.toFixed(2)}`;
+row.title = `Digit ${d}: score ${pct2(m.prob)} · base ${pct2(m.baseFreq)} · avg gap ${m.avgGap.toFixed(1)} · ${m.since} since last`;
 row.innerHTML = `
   <div class="dbar-lbl">${d}</div>
   <div class="dbar-track">
     <div class="dbar-fill" style="width:${fillPct}%;background:${barColor};"></div>
     <div class="dbar-baseline" style="left:${baselinePct}%;"></div>
   </div>
-  <div class="dbar-score" style="color:${m.isOC?'hsl(5,68%,48%)':m.isCalib?'hsl(142,55%,40%)':'var(--foreground)'};">${pct1(m.prob)}</div>
-  <div class="dbar-excess" style="color:${m.excessVsBase>=0?'hsl(142,55%,40%)':'hsl(5,68%,48%)'};">${exc}</div>
-  <div class="dbar-since" style="color:${overdueColor};${m.ovRatio>=2?'font-weight:600;':''}">${overdueStr}</div>
+  <div class="dbar-score" style="color:${m.isOC ? 'hsl(5,68%,48%)' : m.isCalib ? 'hsl(142,55%,40%)' : 'var(--foreground)'};">${pct1(m.prob)}</div>
+  <div class="dbar-excess" style="color:${m.excessVsBase >= 0 ? 'hsl(142,55%,40%)' : 'hsl(5,68%,48%)'};">${exc}</div>
+  <div class="dbar-since" style="color:${overdueColor};${m.ovRatio >= 2 ? 'font-weight:600;' : ''}">${overdueStr}</div>
   <div>${pill}</div>`;
 wrap.appendChild(row);
 ```
@@ -471,23 +331,23 @@ const fillW  = (prob / maxP * 100).toFixed(1);
 const barClr = anyOC ? ‘hsl(5,68%,52%)’ : ‘var(–primary)’;
 const since  = numSince[num];
 const gaps   = numGapMap[num] || [];
-const avgG   = gaps.length >= 2 ? Math.round(gaps.reduce((a,b)=>a+b,0)/gaps.length) : null;
+const avgG   = gaps.length >= 2 ? Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length) : null;
 const sinceStr = since === null ? ‘never’ : since === 0 ? ‘0 (last)’ : `${since}`;
 const avgStr   = avgG !== null ? ` avg ${avgG}` : ‘’;
 const sinceClr = since === null ? ‘hsl(5,68%,48%)’ : since > 40 ? ‘hsl(38,78%,42%)’ : ‘var(–muted-foreground)’;
 
 ```
 html += `
-  <tr title="${num}${isSelf?'':' + '+mir} · P=${pct2(prob)} · ×${ratio.toFixed(1)} · last ${sinceStr} draws ago${avgStr}">
-    <td style="color:var(--muted-foreground);font-size:.7rem;">${i+1}</td>
-    <td class="pt-num${anyOC?' oc-dim':''}">${num}${anyOC?'<sup style="font-size:.55rem;color:hsl(5,68%,50%);">⚠</sup>':''}</td>
-    <td class="pt-mir">${isSelf?'—':mir}</td>
+  <tr title="${num}${isSelf ? '' : ' + ' + mir} · P=${pct2(prob)} · ×${ratio.toFixed(1)} · last ${sinceStr} draws ago${avgStr}">
+    <td style="color:var(--muted-foreground);font-size:.7rem;">${i + 1}</td>
+    <td class="pt-num${anyOC ? ' oc-dim' : ''}">${num}${anyOC ? '<sup style="font-size:.55rem;color:hsl(5,68%,50%);">⚠</sup>' : ''}</td>
+    <td class="pt-mir">${isSelf ? '—' : mir}</td>
     <td style="min-width:80px;">
       <div style="font-family:'JetBrains Mono',monospace;font-size:.8rem;font-weight:600;">${pct2(prob)}</div>
       <div class="pt-bar"><div class="pt-bar-fill" style="width:${fillW}%;background:${barClr};"></div></div>
     </td>
     <td style="width:0;padding:0;"></td>
-    <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:.75rem;font-weight:${ratio>=2?'700':'400'};color:${ratio>=2?'hsl(142,55%,40%)':'var(--muted-foreground)'};">×${ratio.toFixed(1)}</td>
+    <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:.75rem;font-weight:${ratio >= 2 ? '700' : '400'};color:${ratio >= 2 ? 'hsl(142,55%,40%)' : 'var(--muted-foreground)'};">×${ratio.toFixed(1)}</td>
     <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:.68rem;color:${sinceClr};">${sinceStr}${avgStr}</td>
   </tr>`;
 ```
@@ -507,36 +367,24 @@ const { digitMeta, numProbs } = model;
 const pairMap = {};
 DIGITS.forEach(a => DIGITS.forEach(b => {
 if (b < a) return;
-pairMap[a+b] = { a, b, prob: a===b ? numProbs[a+b] : numProbs[a+b]+numProbs[b+a], anyOC: digitMeta[a].isOC||digitMeta[b].isOC };
+pairMap[a + b] = { a, b, prob: a === b ? numProbs[a + b] : numProbs[a + b] + numProbs[b + a], anyOC: digitMeta[a].isOC || digitMeta[b].isOC };
 }));
-const sorted = Object.values(pairMap).sort((x,y) => y.prob-x.prob).slice(0, topN);
+const sorted = Object.values(pairMap).sort((x, y) => y.prob - x.prob).slice(0, topN);
 const maxP   = sorted[0].prob;
 
 let html = `<table class="pt"><thead><tr>
 <th>#</th><th>Pair</th><th>Both tickets</th><th colspan="2">Combined P</th><th style="text-align:right">Caution</th>
 
   </tr></thead><tbody>`;
-  sorted.forEach(({ a, b, prob, anyOC }, i) => {
-    const isSame = a === b;
-    const fillW  = (prob / maxP * 100).toFixed(1);
-    const barClr = anyOC ? 'hsl(5,68%,52%)' : 'hsl(142,55%,44%)';
-    html += `
-      <tr>
-        <td style="color:var(--muted-foreground);font-size:.7rem;">${i+1}</td>
-        <td style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:.9375rem;color:hsl(142,55%,44%)${anyOC?';opacity:.6':''}">{${a},${b}}</td>
-        <td style="font-family:'JetBrains Mono',monospace;font-size:.8rem;color:var(--muted-foreground);">${a+b}${isSame?'':' + '+b+a}</td>
-        <td style="min-width:80px;">
-          <div style="font-family:'JetBrains Mono',monospace;font-size:.8rem;font-weight:600;">${pct2(prob)}</div>
-          <div class="pt-bar"><div class="pt-bar-fill" style="width:${fillW}%;background:${barClr};"></div></div>
-        </td>
-        <td style="width:0;padding:0;"></td>
-        <td style="text-align:right;font-size:.65rem;">${anyOC?'<span class="cpill cpill-red">⚠ OC</span>':''}</td>
-      </tr>`;
-  });
-  el.innerHTML = html + `</tbody></table>
-    <p style="font-size:.7rem;color:var(--muted-foreground);font-style:italic;margin-top:.5rem;line-height:1.55;">
-      {5,9} covers "59" and "95". Combined P = 2×P(5)×P(9). Always buy both.
-    </p>`;
+
+sorted.forEach(({ a, b, prob, anyOC }, i) => {
+const isSame = a === b;
+const fillW  = (prob / maxP * 100).toFixed(1);
+const barClr = anyOC ? ‘hsl(5,68%,52%)’ : ‘hsl(142,55%,44%)’;
+html += ` <tr> <td style="color:var(--muted-foreground);font-size:.7rem;">${i + 1}</td> <td style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:.9375rem;color:hsl(142,55%,44%)${anyOC ? ';opacity:.6' : ''}">{${a},${b}}</td> <td style="font-family:'JetBrains Mono',monospace;font-size:.8rem;color:var(--muted-foreground);">${a + b}${isSame ? '' : ' + ' + b + a}</td> <td style="min-width:80px;"> <div style="font-family:'JetBrains Mono',monospace;font-size:.8rem;font-weight:600;">${pct2(prob)}</div> <div class="pt-bar"><div class="pt-bar-fill" style="width:${fillW}%;background:${barClr};"></div></div> </td> <td style="width:0;padding:0;"></td> <td style="text-align:right;font-size:.65rem;">${anyOC ? '<span class="cpill cpill-red">⚠ OC</span>' : ''}</td> </tr>`;
+});
+
+el.innerHTML = html + `</tbody></table> <p style="font-size:.7rem;color:var(--muted-foreground);font-style:italic;margin-top:.5rem;line-height:1.55;"> {5,9} covers "59" and "95". Combined P = 2×P(5)×P(9). Always buy both. </p>`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -547,9 +395,9 @@ const el = $(‘lookaheadTable’);
 if (!el) return;
 const { digitMeta } = model;
 const Ns        = [1, 2, 3, 4, 6];
-const topDigits = DIGITS.slice().sort((a,b) => digitMeta[b].prob-digitMeta[a].prob).slice(0, 7);
+const topDigits = DIGITS.slice().sort((a, b) => digitMeta[b].prob - digitMeta[a].prob).slice(0, 7);
 
-let html = `<table class="la-tbl"><thead><tr> <th>Digit</th><th>Score</th> ${Ns.map(n=>`<th>Next ${n} draw${n>1?‘s’:’’}</th>`).join(’’)}
+let html = `<table class="la-tbl"><thead><tr> <th>Digit</th><th>Score</th> ${Ns.map(n => `<th>Next ${n} draw${n > 1 ? ‘s’ : ‘’}</th>`).join(’’)}
 <th>Overdue</th><th>Confidence</th>
 
   </tr></thead><tbody>`;
@@ -557,33 +405,33 @@ let html = `<table class="la-tbl"><thead><tr> <th>Digit</th><th>Score</th> ${Ns.
 topDigits.forEach(d => {
 const m    = digitMeta[d];
 const isOC = m.isOC;
-const overdueColor = m.ovRatio>=2?‘hsl(5,68%,48%)’:m.ovRatio>=1?‘hsl(38,78%,42%)’:‘var(–muted-foreground)’;
-const overdueStr   = `${m.since} / ${m.avgGap.toFixed(1)}${m.ovRatio>1?` ×${m.ovRatio.toFixed(1)}`:''}`;
+const overdueColor = m.ovRatio >= 2 ? ‘hsl(5,68%,48%)’ : m.ovRatio >= 1 ? ‘hsl(38,78%,42%)’ : ‘var(–muted-foreground)’;
+const overdueStr   = `${m.since} / ${m.avgGap.toFixed(1)}${m.ovRatio > 1 ? ` ×${m.ovRatio.toFixed(1)}` : ''}`;
 
 ```
 html += `<tr>
   <td style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:1.0625rem;">${d}</td>
-  <td style="font-family:'JetBrains Mono',monospace;font-size:.8rem;color:${isOC?'hsl(5,68%,48%)':'var(--foreground)'};">${pct1(m.prob)}</td>`;
+  <td style="font-family:'JetBrains Mono',monospace;font-size:.8rem;color:${isOC ? 'hsl(5,68%,48%)' : 'var(--foreground)'};">${pct1(m.prob)}</td>`;
 
 Ns.forEach(N => {
   const rawP = cumulP(m.pDraw, N);
   const adjP = isOC ? rawP * OC_CORRECTION : rawP;
-  const disp = isOC ? adjP : rawP;
   if (isOC) {
     html += `<td><div class="la-oc">${pct1(rawP)}</div><div style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:hsl(5,68%,48%);font-weight:600;">~${pct1(adjP)}</div></td>`;
   } else {
-    html += `<td class="${disp>=0.75?'la-hi':disp>=0.45?'la-med':'la-lo'}">${pct1(rawP)}</td>`;
+    const disp = rawP;
+    html += `<td class="${disp >= 0.75 ? 'la-hi' : disp >= 0.45 ? 'la-med' : 'la-lo'}">${pct1(rawP)}</td>`;
   }
 });
 
 let pill;
-if      (isOC)      pill=`<span class="cpill cpill-red">Overconfident ↓</span>`;
-else if (m.isElev)  pill=`<span class="cpill cpill-amber">Elevated</span>`;
-else if (m.isCalib) pill=`<span class="cpill cpill-green">Calibrated ✓</span>`;
-else                pill=`<span class="cpill cpill-muted">Low</span>`;
+if      (isOC)      pill = `<span class="cpill cpill-red">Overconfident ↓</span>`;
+else if (m.isElev)  pill = `<span class="cpill cpill-amber">Elevated</span>`;
+else if (m.isCalib) pill = `<span class="cpill cpill-green">Calibrated ✓</span>`;
+else                pill = `<span class="cpill cpill-muted">Low</span>`;
 
 html += `
-  <td style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:${overdueColor};font-weight:${m.ovRatio>=2?'600':'400'};">${overdueStr}</td>
+  <td style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:${overdueColor};font-weight:${m.ovRatio >= 2 ? '600' : '400'};">${overdueStr}</td>
   <td>${pill}</td></tr>`;
 ```
 
@@ -607,8 +455,8 @@ if (!model) continue;
 
 ```
 const { numProbs, digitMeta } = model;
-const sortedNums  = Object.entries(numProbs).sort((a,b) => b[1]-a[1]);
-const topNums     = sortedNums.slice(0, topN).map(([n]) => n);
+const sortedNums = Object.entries(numProbs).sort((a, b) => b[1] - a[1]);
+const topNums    = sortedNums.slice(0, topN).map(([n]) => n);
 const topListMeta = sortedNums.slice(0, topN).map(([num, prob]) => ({
   num, prob, isOC: digitMeta[num[0]].isOC || digitMeta[num[1]].isOC
 }));
@@ -620,16 +468,16 @@ const matchedNum = topNums.includes(actual) ? actual : topNums.includes(mirror(a
 const actualProb = numProbs[actual] || 0;
 
 const top3digits = DIGITS.slice()
-  .sort((a,b) => digitMeta[b].prob-digitMeta[a].prob)
+  .sort((a, b) => digitMeta[b].prob - digitMeta[a].prob)
   .slice(0, 3)
   .map(d => ({ d, prob: digitMeta[d].prob, isOC: digitMeta[d].isOC }));
 
 function firstHit(ws) {
-  for (let k = 0; k < ws && (i+k) < N; k++) {
-    const drawn = allDraws[i+k].twoNum;
-    if (topNums.includes(drawn))        return { drawn, predNum: drawn,        offset: k, prob: numProbs[drawn]||0 };
+  for (let k = 0; k < ws && (i + k) < N; k++) {
+    const drawn = allDraws[i + k].twoNum;
+    if (topNums.includes(drawn))         return { drawn, predNum: drawn,        offset: k, prob: numProbs[drawn] || 0 };
     const mir = mirror(drawn);
-    if (topNums.includes(mir))          return { drawn, predNum: mir,          offset: k, prob: numProbs[mir]||0 };
+    if (topNums.includes(mir))           return { drawn, predNum: mir,          offset: k, prob: numProbs[mir]   || 0 };
   }
   return null;
 }
@@ -642,23 +490,24 @@ return results;
 }
 
 function renderBacktest() {
-const sumEl = $(‘btSummary’), gridEl = $(‘btGrid’);
+const sumEl  = $(‘btSummary’);
+const gridEl = $(‘btGrid’);
 if (!sumEl || !gridEl) return;
 
 const btAll = runBacktest();
 if (!btAll.length) {
 sumEl.innerHTML  = ‘’;
-gridEl.innerHTML = `<p style="color:var(--muted-foreground);font-size:.8rem;padding:.75rem 0">Not enough data${cutoffN>0?` — cutoff (${cutoffN}) leaves no test draws`:''}.</p>`;
+gridEl.innerHTML = `<p style="color:var(--muted-foreground);font-size:.8rem;padding:.75rem 0">Not enough data${cutoffN > 0 ? ` — cutoff (${cutoffN}) leaves no test draws` : ''}.</p>`;
 return;
 }
 
 const totalN   = btAll.length;
-const pairRate = btAll.filter(r=>r.pairHit).length/totalN;
-const hit2Rate = btAll.filter(r=>r.hit2).length/totalN;
-const hit4Rate = btAll.filter(r=>r.hit4).length/totalN;
-const avgActP  = btAll.reduce((s,r)=>s+r.actualProb,0)/totalN;
+const pairRate = btAll.filter(r => r.pairHit).length / totalN;
+const hit2Rate = btAll.filter(r => r.hit2).length / totalN;
+const hit4Rate = btAll.filter(r => r.hit4).length / totalN;
+const avgActP  = btAll.reduce((s, r) => s + r.actualProb, 0) / totalN;
 
-sumEl.innerHTML = ` <div class="bt-sum-item"><div class="bt-sum-lbl">Draws tested</div><div class="bt-sum-val">${totalN}</div></div> <div class="bt-sum-item"><div class="bt-sum-lbl">Pair hit rate</div><div class="bt-sum-val" style="color:${pairRate>0.055?'hsl(142,55%,40%)':'var(--foreground)'};">${(pairRate*100).toFixed(1)}%</div></div> <div class="bt-sum-item"><div class="bt-sum-lbl">Hit in 2 draws</div><div class="bt-sum-val">${(hit2Rate*100).toFixed(1)}%</div></div> <div class="bt-sum-item"><div class="bt-sum-lbl">Hit in 4 draws</div><div class="bt-sum-val">${(hit4Rate*100).toFixed(1)}%</div></div> <div class="bt-sum-item"><div class="bt-sum-lbl">Avg P(actual)</div><div class="bt-sum-val" style="color:var(--muted-foreground);">${(avgActP*100).toFixed(2)}%</div></div> <div class="bt-sum-item"><div class="bt-sum-lbl">Random baseline</div><div class="bt-sum-val" style="color:var(--muted-foreground);">${topN}%</div></div>`;
+sumEl.innerHTML = ` <div class="bt-sum-item"><div class="bt-sum-lbl">Draws tested</div><div class="bt-sum-val">${totalN}</div></div> <div class="bt-sum-item"><div class="bt-sum-lbl">Pair hit rate</div><div class="bt-sum-val" style="color:${pairRate > 0.055 ? 'hsl(142,55%,40%)' : 'var(--foreground)'};">${(pairRate * 100).toFixed(1)}%</div></div> <div class="bt-sum-item"><div class="bt-sum-lbl">Hit in 2 draws</div><div class="bt-sum-val">${(hit2Rate * 100).toFixed(1)}%</div></div> <div class="bt-sum-item"><div class="bt-sum-lbl">Hit in 4 draws</div><div class="bt-sum-val">${(hit4Rate * 100).toFixed(1)}%</div></div> <div class="bt-sum-item"><div class="bt-sum-lbl">Avg P(actual)</div><div class="bt-sum-val" style="color:var(--muted-foreground);">${(avgActP * 100).toFixed(2)}%</div></div> <div class="bt-sum-item"><div class="bt-sum-lbl">Random baseline</div><div class="bt-sum-val" style="color:var(--muted-foreground);">${topN}%</div></div>`;
 
 const recent = btAll.slice(-btRows);
 let grid = `<div class="bt-hdr">
@@ -678,23 +527,23 @@ const digitCol = r.top3digits.map(({ d, prob, isOC }) => {
   const hit = actualDigits.has(d);
   return `<div style="display:flex;gap:.2rem;align-items:baseline;">
     <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:.8rem;
-      color:${hit?'hsl(142,55%,38%)':isOC?'hsl(5,68%,48%)':'var(--foreground)'};
-      ${hit?'text-decoration:underline dotted;':''}">${d}${isOC?'<sup style="font-size:.5rem">⚠</sup>':''}</span>
-    <span style="font-size:.6rem;color:${isOC?'hsl(5,68%,50%)':'var(--muted-foreground)'};">${pct1(prob)}</span>
+      color:${hit ? 'hsl(142,55%,38%)' : isOC ? 'hsl(5,68%,48%)' : 'var(--foreground)'};
+      ${hit ? 'text-decoration:underline dotted;' : ''}">${d}${isOC ? '<sup style="font-size:.5rem">⚠</sup>' : ''}</span>
+    <span style="font-size:.6rem;color:${isOC ? 'hsl(5,68%,50%)' : 'var(--muted-foreground)'};">${pct1(prob)}</span>
   </div>`;
 }).join('');
 
 const chips = r.topListMeta.slice(0, 10).map(({ num, prob, isOC }) => {
   const isHit = num === r.actual || num === mirror(r.actual);
-  const cls   = 'bt-chip' + (isHit?' bt-chip-hit':isOC?' bt-chip-oc':'');
-  return `<span class="${cls}" title="${num} · P=${pct2(prob)}${isOC?' ⚠ OC':''}">${num}<span class="bt-chip-p">${(prob*100).toFixed(1)}</span></span>`;
+  const cls   = 'bt-chip' + (isHit ? ' bt-chip-hit' : isOC ? ' bt-chip-oc' : '');
+  return `<span class="${cls}" title="${num} · P=${pct2(prob)}${isOC ? ' ⚠ OC' : ''}">${num}<span class="bt-chip-p">${(prob * 100).toFixed(1)}</span></span>`;
 }).join('');
 
 const pairCell = r.pairHit
   ? `<div class="bt-result-cell">
        <span class="bt-result-num">${r.actual}</span>
        ${r.matchedNum !== r.actual ? `<span class="bt-result-sub">via&nbsp;${r.matchedNum}</span>` : ''}
-       <span class="bt-result-prob">${(r.actualProb*100).toFixed(2)}%</span>
+       <span class="bt-result-prob">${(r.actualProb * 100).toFixed(2)}%</span>
      </div>`
   : `<div class="bt-miss">—</div>`;
 
@@ -702,14 +551,14 @@ const hitCell = info => !info
   ? `<div class="bt-miss">—</div>`
   : `<div class="bt-result-cell">
        <span class="bt-result-num">${info.drawn}</span>
-       <span class="bt-result-sub">${info.offset===0?'same':'+'+info.offset+' draw'+(info.offset>1?'s':'')}</span>
-       <span class="bt-result-prob">${(info.prob*100).toFixed(2)}%</span>
+       <span class="bt-result-sub">${info.offset === 0 ? 'same' : '+' + info.offset + ' draw' + (info.offset > 1 ? 's' : '')}</span>
+       <span class="bt-result-prob">${(info.prob * 100).toFixed(2)}%</span>
      </div>`;
 
 grid += `<div class="bt-row">
   <div class="bt-date">${r.dateStr}</div>
-  <div><div class="bt-actual" style="color:${r.pairHit?'hsl(142,55%,40%)':'var(--foreground)'};">${r.actual}</div>
-       <div class="bt-actual-p">${(r.actualProb*100).toFixed(2)}%</div></div>
+  <div><div class="bt-actual" style="color:${r.pairHit ? 'hsl(142,55%,40%)' : 'var(--foreground)'};">${r.actual}</div>
+       <div class="bt-actual-p">${(r.actualProb * 100).toFixed(2)}%</div></div>
   <div class="bt-digit-col">${digitCol}</div>
   <div class="bt-chips">${chips}</div>
   ${pairCell}${hitCell(r.hit2)}${hitCell(r.hit4)}
