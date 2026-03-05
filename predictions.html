@@ -267,7 +267,14 @@
 <!-- Status -->
 <div class="status-bar">
   <span id="statusDot" class="status-dot"></span>
-  <span id="statusText">Loading data from cache…</span>
+  <span id="statusText">Loading…</span>
+</div>
+<!-- Fetch progress bar (shown only when downloading from lottonumbers/) -->
+<div id="loadProgress" style="display:none;align-items:center;gap:.75rem;margin-top:.5rem;">
+  <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+    <div id="loadBar" style="height:100%;width:0%;background:var(--primary);border-radius:3px;transition:width .1s linear;"></div>
+  </div>
+  <span id="loadLabel" style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--muted-foreground);white-space:nowrap;min-width:4rem;text-align:right;"></span>
 </div>
 
 <!-- 1. Stat cards -->
