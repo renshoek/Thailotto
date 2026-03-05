@@ -255,8 +255,8 @@ const fetched = await fetchDates(missing, 20, () => {});
 if (!Object.keys(fetched).length) return;
 
 const merged = [
-…existing,
-…Object.entries(fetched).map(([dateStr, twoNum]) => ({ dateStr, twoNum }))
+...existing,
+...Object.entries(fetched).map(([dateStr, twoNum]) => ({ dateStr, twoNum }))
 ].sort((a, b) => a.dateStr.localeCompare(b.dateStr));
 
 await idbSet(PRED_KEY, { fetchedAt: Date.now(), draws: merged });
