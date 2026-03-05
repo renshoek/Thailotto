@@ -1,77 +1,81 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Thai Lotto Analyzer</title>
   <meta name="description" content="Analyze Thai lottery numbers with frequency statistics, time-based filtering, and intelligent caching. Track patterns across multiple prize categories with advanced data visualization.">
-  
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  
+
   <link rel="stylesheet" href="styles.css">
   <style>
     /* ── UX clarity additions — no existing rule overrides ────────────────── */
 
-    .info-callout {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-left: 3px solid var(--primary);
-      border-radius: var(--radius);
-      padding: 0.875rem 1.125rem;
-      margin-top: 1.5rem;
-      font-size: 0.8125rem;
-      color: var(--muted-foreground);
-      line-height: 1.65;
-    }
-    .info-callout summary {
-      font-weight: 600;
-      color: var(--foreground);
-      cursor: pointer;
-      font-size: 0.875rem;
-      list-style: none;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .info-callout summary::-webkit-details-marker { display: none; }
-    .info-callout summary::before {
-      content: '▶';
-      font-size: 0.6rem;
-      color: var(--primary);
-      transition: transform 0.2s;
-      flex-shrink: 0;
-    }
-    .info-callout[open] summary::before { transform: rotate(90deg); }
-    .info-callout .callout-body { margin-top: 0.75rem; }
+```
+.info-callout {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius);
+  padding: 0.875rem 1.125rem;
+  margin-top: 1.5rem;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  line-height: 1.65;
+}
+.info-callout summary {
+  font-weight: 600;
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 0.875rem;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.info-callout summary::-webkit-details-marker { display: none; }
+.info-callout summary::before {
+  content: '▶';
+  font-size: 0.6rem;
+  color: var(--primary);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+.info-callout[open] summary::before { transform: rotate(90deg); }
+.info-callout .callout-body { margin-top: 0.75rem; }
 
-    .prize-legend {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 0.375rem 1.5rem;
-      margin-top: 0.625rem;
-    }
-    .prize-legend-item { display: flex; gap: 0.5rem; align-items: baseline; }
-    .prize-legend-key {
-      font-weight: 600;
-      color: var(--foreground);
-      white-space: nowrap;
-      font-size: 0.8125rem;
-      min-width: 7rem;
-    }
-    .prize-legend-val { color: var(--muted-foreground); font-size: 0.8125rem; }
+.prize-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.375rem 1.5rem;
+  margin-top: 0.625rem;
+}
+.prize-legend-item { display: flex; gap: 0.5rem; align-items: baseline; }
+.prize-legend-key {
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  min-width: 7rem;
+}
+.prize-legend-val { color: var(--muted-foreground); font-size: 0.8125rem; }
 
-    .draw-window-info {
-      display: none;
-      font-size: 0.75rem;
-      color: var(--muted-foreground);
-      margin-top: 0.25rem;
-    }
-    .draw-window-info.show { display: block; }
-    .draw-window-info strong { color: var(--foreground); }
+.draw-window-info {
+  display: none;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  margin-top: 0.25rem;
+}
+.draw-window-info.show { display: block; }
+.draw-window-info strong { color: var(--foreground); }
 
-    .checkbox-group { display: flex; flex-direction: column; gap: 0.25rem; }
+.checkbox-group { display: flex; flex-direction: column; gap: 0.25rem; }
+```
+
   </style>
 </head>
 <body>
@@ -91,6 +95,7 @@
           <a href="insights.html" class="csv-btn">Insights</a>
           <a href="results.html" class="csv-btn">Results</a>
           <a href="csv.html" class="csv-btn">CSV</a>
+          <a href="predictions.html" class="csv-btn">Predictions</a>
           <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
             <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="5"></circle>
@@ -114,179 +119,141 @@
 
   <main class="container">
 
-    <!-- How to read this -->
-    <details class="info-callout">
-      <summary>How to read this tool</summary>
-      <div class="callout-body">
-        <p style="margin-bottom:0.625rem;">
-          The Thai Government Lottery draws twice a month — on the <strong>1st and 16th</strong> of every month.
-          This tool counts how often each number has appeared in each prize category within your chosen time window,
-          so you can see which numbers are drawn most (or least) frequently.
-        </p>
-        <p style="margin-bottom:0.5rem;"><strong>Prize categories:</strong></p>
-        <div class="prize-legend">
-          <div class="prize-legend-item"><span class="prize-legend-key">First</span><span class="prize-legend-val">6-digit jackpot — 1 number drawn per draw</span></div>
-          <div class="prize-legend-item"><span class="prize-legend-key">Second</span><span class="prize-legend-val">6-digit — 5 numbers drawn</span></div>
-          <div class="prize-legend-item"><span class="prize-legend-key">Third</span><span class="prize-legend-val">6-digit — 10 numbers drawn</span></div>
-          <div class="prize-legend-item"><span class="prize-legend-key">Fourth</span><span class="prize-legend-val">6-digit — 50 numbers drawn</span></div>
-          <div class="prize-legend-item"><span class="prize-legend-key">Fifth</span><span class="prize-legend-val">6-digit — 100 numbers drawn</span></div>
-          <div class="prize-legend-item"><span class="prize-legend-key">Two Digit</span><span class="prize-legend-val">Independently drawn 2-digit number (00–99)</span></div>
-          <div class="prize-legend-item"><span class="prize-legend-key">Three Front</span><span class="prize-legend-val">Independently drawn 3-digit number — 2 drawn per draw</span></div>
-          <div class="prize-legend-item"><span class="prize-legend-key">Three Back</span><span class="prize-legend-val">Independently drawn 3-digit number — 2 drawn per draw</span></div>
-          <div class="prize-legend-item"><span class="prize-legend-key">Near First</span><span class="prize-legend-val">First prize number ±1 — the two adjacent numbers</span></div>
-        </div>
-        <p style="margin-top:0.75rem;">
-          <strong>Frequency table</strong> — each row is a number, its total appearances in the window, and the draw dates it appeared (newest first).<br>
-          <strong>Digit rank table</strong> (small, on the left) — for each digit position in the number, shows which digit (0–9) appears most often.<br>
-          <strong>Recent draws grid</strong> (right) — individual winning numbers from the most recent draws in the selected window.
-        </p>
+```
+<!-- How to read this -->
+<details class="info-callout">
+  <summary>How to read this tool</summary>
+  <div class="callout-body">
+    <p style="margin-bottom:0.625rem;">
+      The Thai Government Lottery draws twice a month — on the <strong>1st and 16th</strong> of every month.
+      This tool counts how often each number has appeared in each prize category within your chosen time window,
+      so you can see which numbers are drawn most (or least) frequently.
+    </p>
+    <p style="margin-bottom:0.5rem;"><strong>Prize categories:</strong></p>
+    <div class="prize-legend">
+      <div class="prize-legend-item"><span class="prize-legend-key">First</span><span class="prize-legend-val">6-digit jackpot — 1 number drawn per draw</span></div>
+      <div class="prize-legend-item"><span class="prize-legend-key">Second</span><span class="prize-legend-val">6-digit — 5 numbers drawn</span></div>
+      <div class="prize-legend-item"><span class="prize-legend-key">Third</span><span class="prize-legend-val">6-digit — 10 numbers drawn</span></div>
+      <div class="prize-legend-item"><span class="prize-legend-key">Fourth</span><span class="prize-legend-val">6-digit — 50 numbers drawn</span></div>
+      <div class="prize-legend-item"><span class="prize-legend-key">Fifth</span><span class="prize-legend-val">6-digit — 100 numbers drawn</span></div>
+      <div class="prize-legend-item"><span class="prize-legend-key">Two Digit</span><span class="prize-legend-val">Independently drawn 2-digit number (00–99)</span></div>
+      <div class="prize-legend-item"><span class="prize-legend-key">Three Front</span><span class="prize-legend-val">Independently drawn 3-digit number — 2 drawn per draw</span></div>
+      <div class="prize-legend-item"><span class="prize-legend-key">Three Back</span><span class="prize-legend-val">Independently drawn 3-digit number — 2 drawn per draw</span></div>
+      <div class="prize-legend-item"><span class="prize-legend-key">Near First</span><span class="prize-legend-val">First prize number ±1 — the two adjacent numbers</span></div>
+    </div>
+    <p style="margin-top:0.75rem;">
+      <strong>Frequency table</strong> — each row is a number, its total appearances in the window, and the draw dates it appeared (newest first).<br>
+      <strong>Digit rank table</strong> (small, on the left) — for each digit position in the number, shows which digit (0–9) appears most often.<br>
+      <strong>Recent draws grid</strong> (right) — individual winning numbers from the most recent draws in the selected window.
+    </p>
+  </div>
+</details>
+
+<!-- Display options -->
+<div class="control-panel" style="margin-top:1rem;">
+  <div class="controls-grid">
+    <div class="checkbox-group">
+      <label class="checkbox-label">
+        <input type="checkbox" id="leastCheckbox">
+        <span>Show least common first</span>
+      </label>
+      <span class="helper-text">Default is most frequent at the top</span>
+    </div>
+
+    <div class="checkbox-group">
+      <label class="checkbox-label">
+        <input type="checkbox" id="miniOnlyCheckbox">
+        <span>Compact view</span>
+      </label>
+      <span class="helper-text">Hide frequency table, show digit rank only</span>
+    </div>
+
+    <div class="control-group">
+      <label for="topN" class="control-label">Numbers to show per prize</label>
+      <input type="number" id="topN" value="10" min="1" class="number-input">
+      <span class="helper-text">How many rows in the frequency table</span>
+    </div>
+  </div>
+</div>
+
+<!-- Time window (sticky) -->
+<div class="control-panel control-panel-sticky">
+  <div class="controls-grid">
+    <div class="control-group">
+      <span class="control-label">Analysis window</span>
+      <div class="radio-group">
+        <label class="radio-label">
+          <input type="radio" name="timeMode" value="all">
+          <span>All time</span>
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="timeMode" value="years" checked>
+          <span>By years</span>
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="timeMode" value="months">
+          <span>By months</span>
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="timeMode" value="draws">
+          <span>By draw count</span>
+        </label>
       </div>
-    </details>
-
-    <div class="panel-sticky-wrap">
-      <button class="panel-collapse-btn is-open" id="idxPanelBtn" type="button">
-        <span class="pcb-left"><span>⚙︎ Controls</span><span class="pcb-summary" id="idxPanelSum"></span></span>
-        <span class="pcb-chevron"></span>
-      </button>
-      <div class="panel-collapsible" id="idxPanelBody">
-    <!-- Display options -->
-    <div class="control-panel">
-      <div class="controls-grid">
-        <div class="checkbox-group">
-          <label class="checkbox-label">
-            <input type="checkbox" id="leastCheckbox">
-            <span>Show least common first</span>
-          </label>
-          <span class="helper-text">Default is most frequent at the top</span>
-        </div>
-
-        <div class="checkbox-group">
-          <label class="checkbox-label">
-            <input type="checkbox" id="miniOnlyCheckbox">
-            <span>Compact view</span>
-          </label>
-          <span class="helper-text">Hide frequency table, show digit rank only</span>
-        </div>
-
-        <div class="control-group">
-          <label for="topN" class="control-label">Numbers to show per prize</label>
-          <input type="number" id="topN" value="10" min="1" class="number-input">
-          <span class="helper-text">How many rows in the frequency table</span>
+      <div class="radio-group" style="margin-top: 0.5rem;">
+        <label class="radio-label">
+          <input type="radio" name="timeDirection" value="backward" checked>
+          <span>Backward from now</span>
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="timeDirection" value="forward">
+          <span>Forward from start</span>
+        </label>
+      </div>
+      <span class="helper-text" style="margin-top: 0.25rem; display: block;"><em>Backward from now</em>: most recent N draws/months/years. <em>Forward from start</em>: oldest draws first from Dec 30 2006.</span>
+      <label class="checkbox-label checkbox-nested" style="margin-top: 0.5rem;">
+        <input type="checkbox" id="customStartCheckbox">
+        <span>Custom anchor date</span>
+      </label>
+      <div id="customDateControl" class="control-group" style="display:none; margin-top: 0.5rem;">
+        <label for="customStartDate" class="control-label">Anchor date</label>
+        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <input type="date" id="customStartDate" class="date-input date-input-narrow">
+            <button type="button" id="applyDateBtn" class="date-action-btn">Apply</button>
+          </div>
+          <button type="button" id="todayBtn" class="today-text-btn">today</button>
         </div>
       </div>
     </div>
 
-    <!-- Time window -->
-    <div class="control-panel">
-      <div class="controls-grid">
-        <div class="control-group">
-          <span class="control-label">Analysis window</span>
-          <div class="radio-group">
-            <label class="radio-label">
-              <input type="radio" name="timeMode" value="all">
-              <span>All time</span>
-            </label>
-            <label class="radio-label">
-              <input type="radio" name="timeMode" value="years" checked>
-              <span>By years</span>
-            </label>
-            <label class="radio-label">
-              <input type="radio" name="timeMode" value="months">
-              <span>By months</span>
-            </label>
-            <label class="radio-label">
-              <input type="radio" name="timeMode" value="draws">
-              <span>By draw count</span>
-            </label>
-          </div>
-          <div class="radio-group" style="margin-top: 0.5rem;">
-            <label class="radio-label">
-              <input type="radio" name="timeDirection" value="backward" checked>
-              <span>Backward from now</span>
-            </label>
-            <label class="radio-label">
-              <input type="radio" name="timeDirection" value="forward">
-              <span>Forward from start</span>
-            </label>
-          </div>
-          <span class="helper-text" style="margin-top: 0.25rem; display: block;"><em>Backward from now</em>: most recent N draws/months/years. <em>Forward from start</em>: oldest draws first from Dec 30 2006.</span>
-          <label class="checkbox-label checkbox-nested" style="margin-top: 0.5rem;">
-            <input type="checkbox" id="customStartCheckbox">
-            <span>Custom anchor date</span>
-          </label>
-          <div id="customDateControl" class="control-group" style="display:none; margin-top: 0.5rem;">
-            <label for="customStartDate" class="control-label">Anchor date</label>
-            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-              <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <input type="date" id="customStartDate" class="date-input date-input-narrow">
-                <button type="button" id="applyDateBtn" class="date-action-btn">Apply</button>
-              </div>
-              <button type="button" id="todayBtn" class="today-text-btn">today</button>
-            </div>
-          </div>
-        </div>
-
-        <div id="yearsControl" class="control-group">
-          <label for="yearsBack" class="control-label">Window length (years)</label>
-          <input type="number" id="yearsBack" value="4" min="1" class="number-input">
-        </div>
-
-        <div id="monthsControl" class="control-group" style="display:none;">
-          <label for="monthsBack" class="control-label">Window length (months)</label>
-          <input type="number" id="monthsBack" value="24" min="1" class="number-input">
-          <span id="monthsLabel" class="helper-text">(2 years, 0 months)</span>
-        </div>
-
-        <div id="drawsControl" class="control-group" style="display:none;">
-          <label for="drawsCount" class="control-label">Number of draws</label>
-          <input type="number" id="drawsCount" value="10" min="1" class="number-input">
-        </div>
-      </div>
+    <div id="yearsControl" class="control-group">
+      <label for="yearsBack" class="control-label">Window length (years)</label>
+      <input type="number" id="yearsBack" value="4" min="1" class="number-input">
     </div>
 
-      </div><!-- /panel-collapsible -->
-    </div><!-- /panel-sticky-wrap -->
+    <div id="monthsControl" class="control-group" style="display:none;">
+      <label for="monthsBack" class="control-label">Window length (months)</label>
+      <input type="number" id="monthsBack" value="24" min="1" class="number-input">
+      <span id="monthsLabel" class="helper-text">(2 years, 0 months)</span>
+    </div>
 
-    <label class="section-label">Prize category</label>
-    <div class="tabs" role="tablist" id="prizeTabs"></div>
-    <div class="tab-content" id="prizeTabContent"></div>
+    <div id="drawsControl" class="control-group" style="display:none;">
+      <label for="drawsCount" class="control-label">Number of draws</label>
+      <input type="number" id="drawsCount" value="10" min="1" class="number-input">
+    </div>
+  </div>
+</div>
 
-    <div id="output"></div>
+<label class="section-label">Prize category</label>
+<div class="tabs" role="tablist" id="prizeTabs"></div>
+<div class="tab-content" id="prizeTabContent"></div>
+
+<div id="output"></div>
+```
+
   </main>
 
   <script type="module" src="script.js"></script>
-  <script>
-  (function () {
-    var page = location.pathname.split('/').pop() || 'index.html';
-    document.querySelectorAll('.csv-btn').forEach(function (el) {
-      var href = (el.getAttribute('href') || '').split('/').pop();
-      if (href === page || (page === '' && href === 'index.html')) {
-        el.classList.add('nav-active');
-      }
-    });
-  })();
-  </script>
-  <script>
-  (function () {
-    var btn = document.getElementById('idxPanelBtn');
-    var body = document.getElementById('idxPanelBody');
-    var sumEl = document.getElementById('idxPanelSum');
-    if (!btn || !body) return;
-    function getSummary() { return ((document.querySelector('input[name=timeMode]:checked')||{value:''}).value + ' · top ' + ((document.getElementById('topN')||{value:'10'}).value)); }
-    function updateSummary() {
-      if (!sumEl) return;
-      sumEl.textContent = btn.classList.contains('is-open') ? '' : (' · ' + getSummary());
-    }
-    btn.addEventListener('click', function () {
-      var opening = !btn.classList.contains('is-open');
-      btn.classList.toggle('is-open');
-      if (opening) { body.style.maxHeight = '2000px'; body.classList.remove('is-closed'); }
-      else { body.style.maxHeight = body.scrollHeight + 'px'; requestAnimationFrame(function () { body.classList.add('is-closed'); }); }
-      updateSummary();
-    });
-    document.addEventListener('change', updateSummary);
-    updateSummary();
-  })();
-  </script>
+
 </body>
 </html>
