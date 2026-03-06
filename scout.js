@@ -244,11 +244,10 @@ function computeComposite () {
     const calibBonus = (aCalib || bCalib) ? 1 : 0;
 
     allNums.push({
-      ...s,
       num, a, b, pM, aCalib, bCalib, aElev, bElev,
       aProb: digitProb[a], bProb: digitProb[b],
       aOvR:  digitMeta[a].ovRatioRaw, bOvR: digitMeta[b].ovRatioRaw,
-      odBonus, calibBonus,
+      ...s, odBonus, calibBonus,
       digitHotA: digitHot[a], digitHotB: digitHot[b],
     });
   }
@@ -266,7 +265,7 @@ function computeComposite () {
     let sigs = 0;
     if (normP  > 0.5)                          sigs++;  // model P above median
     if (normOD > 0.35 && s.freq >= 3)          sigs++;  // number overdue vs own avg
-    if (s.aCalib || s.bCalib)                  sigs++;  // digit in calibrated zone
+    if (aCalib || bCalib)                      sigs++;  // digit in calibrated zone
     s.signalCount = sigs;
     s.tier = sigs >= 3 ? 'A' : sigs === 2 ? 'B' : 'C';
   });
