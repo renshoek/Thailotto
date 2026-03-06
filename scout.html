@@ -9,94 +9,74 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <style>
-    /* ── Scout-page local styles ──────────────────────────────────── */
-
-    /* Shared input */
     .select-input {
-      padding: .375rem .625rem; border: 1px solid var(--border);
-      border-radius: calc(var(--radius)*.75); background: var(--background);
-      color: var(--foreground); font-size: .875rem; font-family: inherit; cursor: pointer;
+      padding:.375rem .625rem; border:1px solid var(--border);
+      border-radius:calc(var(--radius)*.75); background:var(--background);
+      color:var(--foreground); font-size:.875rem; font-family:inherit; cursor:pointer;
     }
-    .select-input:focus { outline: 2px solid var(--primary); outline-offset: 2px; }
+    .select-input:focus { outline:2px solid var(--primary); outline-offset:2px; }
 
-    /* Status */
     .status-bar { display:flex; align-items:center; gap:.75rem; font-size:.75rem; color:var(--muted-foreground); padding:.5rem 0; flex-wrap:wrap; margin-top:.75rem; }
     .status-dot { width:.5rem; height:.5rem; border-radius:50%; background:var(--muted-foreground); flex-shrink:0; }
     .status-dot.live { background:#22c55e; box-shadow:0 0 0 3px #22c55e22; }
 
-    /* Stat cards */
     .stat-cards-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:1rem; margin-top:1.25rem; }
     .stat-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:1rem 1.25rem; box-shadow:var(--shadow-sm); }
     .stat-card-label { font-size:.6875rem; color:var(--muted-foreground); font-weight:600; text-transform:uppercase; letter-spacing:.07em; }
     .stat-card-value { font-size:1.875rem; font-weight:700; letter-spacing:-.03em; margin-top:.25rem; font-variant-numeric:tabular-nums; }
     .stat-card-sub { font-size:.7rem; color:var(--muted-foreground); margin-top:.125rem; line-height:1.4; }
 
-    /* Section card */
     .sc-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem 1.5rem; box-shadow:var(--shadow-sm); margin-top:1.25rem; }
     .sc-card-title { font-size:.9375rem; font-weight:600; margin-bottom:.25rem; }
     .sc-card-sub { font-size:.75rem; color:var(--muted-foreground); margin-bottom:1rem; line-height:1.65; }
 
-    .header-title { font-size:1.75rem; font-weight:600; letter-spacing:-.025em; }
+    .header-title    { font-size:1.75rem; font-weight:600; letter-spacing:-.025em; }
     .header-subtitle { font-size:.875rem; color:var(--muted-foreground); margin-top:.25rem; }
 
     .range-wrap { display:flex; align-items:center; gap:.75rem; }
     .range-wrap input[type=range] { flex:1; accent-color:var(--primary); cursor:pointer; }
     .range-val { font-family:'JetBrains Mono',monospace; font-size:.8125rem; font-weight:600; min-width:3.5rem; text-align:right; }
 
-    /* Confidence pills */
+    /* Pills */
     .cpill { display:inline-flex; align-items:center; justify-content:center; font-size:.58rem; font-weight:700; text-transform:uppercase; padding:.15rem .45rem; border-radius:.25rem; letter-spacing:.05em; white-space:nowrap; }
     .cpill-green { background:hsl(142,50%,88%); color:hsl(142,55%,26%); }
     .dark .cpill-green { background:hsl(142,33%,18%); color:hsl(142,60%,64%); }
     .cpill-amber { background:hsl(38,88%,90%); color:hsl(38,78%,26%); }
     .dark .cpill-amber { background:hsl(38,36%,18%); color:hsl(38,78%,64%); }
-    .cpill-red { background:hsl(5,75%,90%); color:hsl(5,68%,30%); }
-    .dark .cpill-red { background:hsl(5,36%,20%); color:hsl(5,68%,64%); }
     .cpill-muted { background:var(--border); color:var(--muted-foreground); }
 
     /* Tier badges */
     .tier-badge { display:inline-flex; align-items:center; justify-content:center; font-size:.62rem; font-weight:800; letter-spacing:.05em; padding:.2rem .45rem; border-radius:.25rem; white-space:nowrap; }
-    .tier-a  { background:hsl(142,50%,88%); color:hsl(142,55%,22%); }
+    .tier-a { background:hsl(142,50%,88%); color:hsl(142,55%,22%); }
     .dark .tier-a { background:hsl(142,33%,18%); color:hsl(142,60%,68%); }
-    .tier-b  { background:hsl(215,75%,90%); color:hsl(215,75%,28%); }
+    .tier-b { background:hsl(215,75%,90%); color:hsl(215,75%,28%); }
     .dark .tier-b { background:hsl(215,40%,20%); color:hsl(215,75%,68%); }
-    .tier-c  { background:var(--border); color:var(--muted-foreground); }
-    .tier-oc { background:hsl(5,75%,90%); color:hsl(5,68%,28%); }
-    .dark .tier-oc { background:hsl(5,36%,20%); color:hsl(5,68%,64%); }
+    .tier-c { background:var(--border); color:var(--muted-foreground); }
 
-    /* Signal dots */
-    .sdot { display:inline-flex; align-items:center; justify-content:center; font-size:.58rem; font-weight:700; padding:.1rem .3rem; border-radius:3px; margin:0 .1rem; white-space:nowrap; }
-    .sdot-model { background:hsl(215,75%,90%); color:hsl(215,75%,30%); }
-    .dark .sdot-model { background:hsl(215,40%,20%); color:hsl(215,75%,68%); }
-    .sdot-od  { background:hsl(38,88%,90%); color:hsl(38,78%,26%); }
-    .dark .sdot-od { background:hsl(38,36%,18%); color:hsl(38,78%,64%); }
-    .sdot-hot { background:hsl(15,80%,90%); color:hsl(15,80%,28%); }
-    .dark .sdot-hot { background:hsl(15,36%,20%); color:hsl(15,80%,64%); }
-    .sdot-cal { background:hsl(142,50%,88%); color:hsl(142,55%,26%); }
-    .dark .sdot-cal { background:hsl(142,33%,18%); color:hsl(142,60%,64%); }
-    .sdot-oc  { background:hsl(5,75%,90%); color:hsl(5,68%,30%); }
-    .dark .sdot-oc { background:hsl(5,36%,20%); color:hsl(5,68%,64%); }
+    /* Signal tags */
+    .stag { display:inline-flex; align-items:center; justify-content:center; font-size:.57rem; font-weight:700; padding:.1rem .3rem; border-radius:3px; margin:0 .1rem; white-space:nowrap; }
+    .stag-p    { background:hsl(215,75%,90%); color:hsl(215,75%,30%); }
+    .dark .stag-p { background:hsl(215,40%,20%); color:hsl(215,75%,68%); }
+    .stag-od   { background:hsl(38,88%,90%); color:hsl(38,78%,26%); }
+    .dark .stag-od { background:hsl(38,36%,18%); color:hsl(38,78%,64%); }
+    .stag-cal  { background:hsl(142,50%,88%); color:hsl(142,55%,26%); }
+    .dark .stag-cal { background:hsl(142,33%,18%); color:hsl(142,60%,64%); }
+    .stag-elev { background:hsl(38,88%,90%); color:hsl(38,78%,26%); font-style:normal; }
+    .dark .stag-elev { background:hsl(38,36%,18%); color:hsl(38,78%,64%); }
 
     /* Avoid tags */
-    .avoid-tag { display:inline-flex; align-items:center; font-size:.58rem; font-weight:700; padding:.1rem .35rem; border-radius:3px; white-space:nowrap; margin:.1rem .05rem; }
-    .avoid-oc     { background:hsl(5,75%,90%);  color:hsl(5,68%,28%); }
-    .dark .avoid-oc { background:hsl(5,36%,20%); color:hsl(5,68%,64%); }
+    .avoid-tag { display:inline-flex; align-items:center; font-size:.57rem; font-weight:700; padding:.1rem .33rem; border-radius:3px; white-space:nowrap; margin:.1rem .05rem; }
     .avoid-recent { background:hsl(215,75%,90%); color:hsl(215,75%,28%); }
     .dark .avoid-recent { background:hsl(215,40%,20%); color:hsl(215,75%,68%); }
-    .avoid-hot    { background:hsl(15,80%,90%);  color:hsl(15,80%,28%); }
+    .avoid-hot   { background:hsl(15,80%,90%); color:hsl(15,80%,28%); }
     .dark .avoid-hot { background:hsl(15,36%,20%); color:hsl(15,80%,64%); }
-    .avoid-fresh  { background:hsl(280,60%,90%); color:hsl(280,60%,28%); }
+    .avoid-fresh { background:hsl(280,60%,90%); color:hsl(280,60%,28%); }
     .dark .avoid-fresh { background:hsl(280,30%,20%); color:hsl(280,60%,68%); }
-    .avoid-low    { background:var(--border); color:var(--muted-foreground); }
+    .avoid-low   { background:var(--border); color:var(--muted-foreground); }
 
-    /* Scout tables */
-    .sc-scroll { overflow-x:auto; }
+    /* Tables */
     .sc-tbl { width:100%; border-collapse:collapse; font-size:.8125rem; }
-    .sc-tbl thead th {
-      padding:.4rem .6rem; text-align:left;
-      border-bottom:2px solid var(--border);
-      font-size:.6rem; text-transform:uppercase; letter-spacing:.07em;
-      color:var(--muted-foreground); font-weight:600; white-space:nowrap;
-    }
+    .sc-tbl thead th { padding:.4rem .6rem; text-align:left; border-bottom:2px solid var(--border); font-size:.6rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted-foreground); font-weight:600; white-space:nowrap; }
     .sc-tbl td { padding:.35rem .6rem; border-bottom:1px solid var(--border); vertical-align:middle; }
     .sc-tbl tbody tr:last-child td { border-bottom:none; }
     .sc-tbl tbody tr:hover { background:var(--background); }
@@ -105,15 +85,7 @@
     .sc-matrix { border-collapse:separate; border-spacing:3px; background:transparent; box-shadow:none; margin:0; }
     .sc-matrix th, .sc-matrix td { border:none; }
 
-    /* Disclaimer */
-    .sc-disclaimer {
-      background:var(--background); border:1px solid var(--border);
-      border-radius:calc(var(--radius)*.75); padding:.75rem 1rem;
-      font-size:.75rem; color:var(--muted-foreground); margin-top:.875rem; line-height:1.55;
-    }
-
-    /* Tier legend */
-    .tier-legend { display:flex; gap:1rem; flex-wrap:wrap; font-size:.75rem; color:var(--muted-foreground); margin-bottom:.875rem; align-items:center; }
+    .sc-disclaimer { background:var(--background); border:1px solid var(--border); border-radius:calc(var(--radius)*.75); padding:.75rem 1rem; font-size:.75rem; color:var(--muted-foreground); margin-top:.875rem; line-height:1.55; }
   </style>
 </head>
 <body>
@@ -163,12 +135,12 @@
           <div class="controls-grid">
 
             <div class="control-group" style="min-width:210px;">
-              <label class="control-label">Recency window W = <span id="recLbl">20</span></label>
+              <label class="control-label">Recency window W = <span id="recLbl">15</span></label>
               <div class="range-wrap">
-                <input type="range" id="recSlider" min="10" max="40" value="20" step="1">
-                <span class="range-val"><span id="recLbl2">20</span> draws</span>
+                <input type="range" id="recSlider" min="5" max="40" value="15" step="1">
+                <span class="range-val"><span id="recLbl2">15</span> draws</span>
               </div>
-              <span class="helper-text">Affects short-term frequency signal in the model (35% weight)</span>
+              <span class="helper-text">50% weight in model · optimal W=15 from backtest</span>
             </div>
 
             <div class="control-group">
@@ -178,7 +150,7 @@
                 <option value="15" selected>Top 15</option>
                 <option value="20">Top 20</option>
               </select>
-              <span class="helper-text">Applies to best picks and avoid list</span>
+              <span class="helper-text">Applies to best picks, pairs and avoid list</span>
             </div>
 
           </div>
@@ -189,104 +161,103 @@
     <!-- Status -->
     <div class="status-bar">
       <span id="statusDot" class="status-dot"></span>
-      <span id="statusText">Loading data from cache…</span>
+      <span id="statusText">Loading from cache…</span>
     </div>
 
     <!-- Stat cards -->
     <div id="statCards" class="stat-cards-row"></div>
 
-    <!-- How this page works -->
-    <div class="sc-card" style="border-left:3px solid var(--primary);margin-top:1.25rem;">
-      <div class="sc-card-title">How composite scoring works</div>
-      <div class="sc-card-sub" style="margin-bottom:0">
-        Each number (00–99) is scored across four independent signals and given a composite score (0–100):
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.875rem;margin-top:.875rem;font-size:.8rem;line-height:1.7;">
+    <!-- Scoring explanation -->
+    <div class="sc-card" style="border-left:3px solid var(--primary);">
+      <div class="sc-card-title">How Scout Scores Each Number</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.875rem;margin-top:.75rem;font-size:.8rem;line-height:1.75;color:var(--muted-foreground)">
         <div>
-          <strong>1 · Model P (50%)</strong><br>
-          Probability from the combined recency + overdue + base rate model.
-          OC-corrected: if any digit scores &gt;24%, probability is multiplied by 0.73 (the backtest correction factor).
+          <strong style="color:var(--foreground)">Signal 1 · Model P (60%)</strong><br>
+          Probability from the combined recency + base rate + overdue model (validated weights: 50/30/20, W=15).
+          This is the strongest predictor — higher-ranked numbers get more weight.
         </div>
         <div>
-          <strong>2 · Number overdue (30%)</strong><br>
+          <strong style="color:var(--foreground)">Signal 2 · Number overdue (30%)</strong><br>
           How far this specific number's current absence exceeds its own historical average gap.
-          Only counted when the number appeared ≥3 times (otherwise the gap estimate is unreliable).
-          Reliability-gated: weight scales up to 8 appearances.
+          Only counted when the number has appeared ≥3 times — fewer appearances make the gap estimate too noisy.
+          Reliability scales up to 8 appearances.
         </div>
         <div>
-          <strong>3 · Calibrated zone (+5%)</strong><br>
-          Bonus if neither digit is OC and at least one is in the 17–20% zone — the only range the backtest showed directionally correct.
-        </div>
-        <div>
-          <strong>4 · Hot/cold (±5%)</strong><br>
-          Minor tiebreaker. Compares recent appearances vs expected rate. Low weight because recency-only strategies tested worse than random.
+          <strong style="color:var(--foreground)">Signal 3 · Calibrated zone (10%)</strong><br>
+          Small bonus if at least one digit is in the 17–22% zone — the range where the backtest
+          found a directionally positive hit rate (22.3% vs 19% baseline).
         </div>
       </div>
       <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:.875rem;font-size:.75rem;align-items:center;">
         <strong style="font-size:.75rem">Tiers:</strong>
-        <span class="tier-badge tier-a">A</span><span style="font-size:.75rem"> ≥3 signals, no OC</span>
-        <span class="tier-badge tier-b">B</span><span style="font-size:.75rem"> 2 signals</span>
-        <span class="tier-badge tier-c">C</span><span style="font-size:.75rem"> 1 signal</span>
-        <span class="tier-badge tier-oc">OC</span><span style="font-size:.75rem"> Overconfident digit — model historically worse than random here</span>
+        <span class="tier-badge tier-a">A</span><span style="font-size:.75rem">3 signals</span>
+        <span class="tier-badge tier-b">B</span><span style="font-size:.75rem">2 signals</span>
+        <span class="tier-badge tier-c">C</span><span style="font-size:.75rem">1 signal</span>
+        &nbsp;·&nbsp;
+        <span class="stag stag-p">P↑</span> model above median &nbsp;
+        <span class="stag stag-od">OD</span> number overdue &nbsp;
+        <span class="stag stag-cal">✓</span> calibrated zone &nbsp;
+        <span class="stag stag-elev">⚠</span> elevated &gt;22% (rare, uncertain)
       </div>
-      <div class="sc-disclaimer" style="margin-top:.875rem">
-        ⚠️ All signals are statistically weak over 458 draws. Tier A means multiple weak signals align — not that the number will hit.
-        The composite is a structured ranking, not a prediction. No strategy achieves a statistically confirmed edge at this sample size.
+      <div class="sc-disclaimer">
+        ⚠️ Tier A means multiple weak signals overlap — it does not mean the number will hit.
+        The model has Z=1.87 (not yet statistically significant at p&lt;0.05).
+        Year-on-year hit rate ranges from 8% to 40% — the model is not stable across time.
+        No strategy achieves a confirmed edge at 458 draws. This is structured guessing, not prediction.
       </div>
     </div>
 
-    <!-- Section 2: Digit ranking -->
+    <!-- Section 1: Digit ranking -->
     <div class="sc-card">
       <div class="sc-card-title">Digit Signal Ranking</div>
       <div class="sc-card-sub">
-        All 10 digits ranked by model score. The <em>In top-30 picks</em> column counts how many of the top-30
-        composite numbers contain that digit — a convergence check between digit-level and number-level evidence.
-        OC digits (&gt;24%) should be treated with extra scepticism: backtest hit rate was 13.8%, below random 19%.
+        All 10 digits ranked by model score. <em>In top-30 picks</em> shows how many of the top-30 composite numbers
+        contain that digit — a convergence check. Calibrated zone 17–22% showed 22.3% hit rate vs 19% in zone analysis.
+        Elevated (&gt;22%) is very rare — digits reach this level in under 3% of draws.
       </div>
       <div id="digitSection"></div>
     </div>
 
-    <!-- Section 3: Best numbers -->
+    <!-- Section 2: Best exact numbers -->
     <div class="sc-card">
       <div class="sc-card-title">Best Number Picks — Exact</div>
       <div class="sc-card-sub">
-        Top numbers ranked by composite score. <em>Mirror</em> shown alongside each number — buy both tickets
-        (symmetry confirmed: "59" and "95" have equal probability).
-        <em>Num overdue</em> = this specific number's current absence relative to its own average gap.
-        <em>Hot/cold</em> = recent appearance rate vs expected; note recency-only strategies are worse than random.
+        Top numbers by composite score. <em>Mirror</em> shown — always buy both (e.g. 59 and 95 are the same probability, symmetry confirmed).
+        <em>Num overdue</em> = this number's absence relative to its own average gap (only meaningful with ≥3 appearances).
+        Hot/cold = recent rate vs expected — minor tiebreaker only.
       </div>
       <div id="bestNumbers"></div>
     </div>
 
-    <!-- Section 4: Best pairs -->
+    <!-- Section 3: Best pairs -->
     <div class="sc-card">
       <div class="sc-card-title">Best Pair Picks — Unordered {A,B}</div>
       <div class="sc-card-sub">
         Each row covers <strong>two tickets</strong> (AB and BA). Combined P = 2 × P(A) × P(B) for A≠B.
-        Composite is the average of both orientations. OC-corrected probability shown if either digit &gt;24%.
-        Always buy both orientations — they are statistically identical.
+        Always buy both — positional symmetry is statistically confirmed.
+        Composite is the average of both orientations.
       </div>
       <div id="bestPairs"></div>
     </div>
 
-    <!-- Section 5: Avoid list -->
+    <!-- Section 4: Avoid list -->
     <div class="sc-card">
       <div class="sc-card-title">Numbers to Skip</div>
       <div class="sc-card-sub">
-        Bottom composite scores among numbers that have appeared at least twice (enough to have a meaningful signal).
-        <em>Just drawn</em> = appeared more recently than half its average gap — model assigns it low overdue score.
-        <em>Running hot</em> = recent appearances well above expected rate — likely mean-reversion candidate.
-        <em>OC digit</em> = at least one digit was overconfident; model historically under-performed here.
+        Bottom composite scores among numbers with ≥2 appearances.
+        <em>Just drawn</em> = appeared more recently than half its avg gap — low overdue score.
+        <em>Running hot</em> = recent appearances well above expected rate.
+        <em>Not overdue</em> = appeared recently relative to average — low absence signal.
       </div>
       <div id="avoidList"></div>
     </div>
 
-    <!-- Section 6: Signal matrix -->
+    <!-- Section 5: Signal matrix -->
     <div class="sc-card">
       <div class="sc-card-title">Signal Matrix — All 100 Numbers</div>
       <div class="sc-card-sub">
-        Each cell = one two-digit number. Green intensity = higher composite score. Red tint = contains an OC digit.
-        Hover for rank, score, and tier. Row = tens digit, column = units digit.
+        Green intensity = higher composite. Amber tint = at least one digit in elevated zone (&gt;22%).
+        Hover for rank, score, tier. Row = tens digit, column = units digit. Numbers shown top, score bottom.
       </div>
       <div id="signalMatrix"></div>
     </div>
@@ -295,39 +266,31 @@
 
   <script src="scout.js"></script>
   <script>
-  /* Nav active-page highlight */
   (function () {
+    // Nav active highlight
     var page = location.pathname.split('/').pop() || 'index.html';
     document.querySelectorAll('.csv-btn').forEach(function (el) {
       var href = (el.getAttribute('href') || '').split('/').pop();
-      if (href === page || (page === '' && href === 'index.html')) el.classList.add('nav-active');
+      if (href === page) el.classList.add('nav-active');
     });
-  })();
-
-  /* Collapsible panel */
-  (function () {
-    var btn   = document.getElementById('scoutPanelBtn');
-    var body  = document.getElementById('scoutPanelBody');
-    var sumEl = document.getElementById('scoutPanelSum');
+    // Collapsible panel
+    var btn  = document.getElementById('scoutPanelBtn');
+    var body = document.getElementById('scoutPanelBody');
+    var sum  = document.getElementById('scoutPanelSum');
     if (!btn || !body) return;
-    function getSummary() {
-      var rw = (document.getElementById('recLbl') || {}).textContent || '20';
+    function getSummary () {
+      var rw = (document.getElementById('recLbl') || {}).textContent || '15';
       var tn = (document.getElementById('topNSel') || {}).value || '15';
       return 'W=' + rw + ' · top ' + tn;
     }
-    function updateSummary() {
-      if (sumEl) sumEl.textContent = btn.classList.contains('is-open') ? '' : (' · ' + getSummary());
+    function updateSummary () {
+      if (sum) sum.textContent = btn.classList.contains('is-open') ? '' : (' · ' + getSummary());
     }
     btn.addEventListener('click', function () {
       var opening = !btn.classList.contains('is-open');
       btn.classList.toggle('is-open');
-      if (opening) {
-        body.style.maxHeight = '2000px';
-        body.classList.remove('is-closed');
-      } else {
-        body.style.maxHeight = body.scrollHeight + 'px';
-        requestAnimationFrame(function () { body.classList.add('is-closed'); });
-      }
+      if (opening) { body.style.maxHeight = '2000px'; body.classList.remove('is-closed'); }
+      else { body.style.maxHeight = body.scrollHeight + 'px'; requestAnimationFrame(function () { body.classList.add('is-closed'); }); }
       updateSummary();
     });
     document.addEventListener('change', updateSummary);
