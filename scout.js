@@ -17,16 +17,16 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 const DIGITS     = '0123456789'.split('');
-const W_REC      = 0.35, W_OV = 0.45, W_BASE = 0.20;
-const OV_CAP     = 3.0;
-const OVERCONF   = 0.24, CALIB_LO = 0.17, CALIB_HI = 0.20;
-const OC_CORR    = 0.73;
+const W_REC      = 0.50, W_OV = 0.20, W_BASE = 0.30;
+const OV_CAP     = 2.0;
+const CALIB_LO   = 0.17, CALIB_HI = 0.22;
+
 const MIN_HIST   = 30;
 const DB_NAME    = 'thai-lotto-agg-db';
 const STORE_NAME = 'agg-store';
 const CACHE_KEY  = 'perFileAggMap_v2';
 
-let allDraws = [], recW = 20, topN = 15;
+let allDraws = [], recW = 15, topN = 15;
 
 const $         = id => document.getElementById(id);
 const pct1      = v  => (v * 100).toFixed(1) + '%';
@@ -157,9 +157,9 @@ function computeModel(seq, W) {
     const p = rawScore[d] / total;
     digitProb[d] = p;
     meta[d].prob         = p;
-    meta[d].isOC         = p > OVERCONF;
+    
     meta[d].isCalib      = p >= CALIB_LO && p <= CALIB_HI;
-    meta[d].isElev       = p > CALIB_HI && p <= OVERCONF;
+    meta[d].isElev = p > CALIB_HI;  // any score >22% is 'elevated' (rare zone)
     meta[d].excessVsBase = p - meta[d].baseFreq;
     meta[d].pDraw        = 1 - Math.pow(1 - p, 2);
   });
@@ -255,13 +255,13 @@ function computeComposite() {
     const a = num[0], b = num[1];
     const s     = numStats[num];
     const pM    = numProbs[num];      // exact P(ab)
-    const aOC   = digitMeta[a].isOC;
-    const bOC   = digitMeta[b].isOC;
+    const aOC   = digitMeta[a].isElev;
+    const bOC   = digitMeta[b].isElev;
     const anyOC = aOC || bOC;
     const aCalib = digitMeta[a].isCalib, bCalib = digitMeta[b].isCalib;
 
     // OC-corrected model probability
-    const pAdj = anyOC ? pM * OC_CORR : pM;
+    const pAdj = pM;  // no OC correction: >22% zone has 0 backtest samples
 
     // Number-level overdue bonus
     // Only meaningful when number appeared ≥3 times.  Reliability saturates at 8 appearances.
@@ -321,7 +321,7 @@ function computeComposite() {
       const combinedComp = ba
         ? Math.round((ab.composite + ba.composite) / 2)
         : ab.composite;
-      const anyOC = digitMeta[a].isOC || digitMeta[b].isOC;
+      const anyOC = digitMeta[a].isElev || digitMeta[b].isElev;
       pairArr.push({ a, b, pPair, combinedComp, anyOC, ab, ba });
     });
   });
@@ -414,10 +414,10 @@ function renderStatCards(data) {
     </div>
     <div class="stat-card">
       <div class="stat-card-label">Top digit</div>
-      <div class="stat-card-value" style="font-family:'JetBrains Mono',monospace;color:${topDig?.isOC ? 'hsl(5,68%,48%)' : 'var(--primary)'}">
+      <div class="stat-card-value" style="font-family:'JetBrains Mono',monospace;color:${topDig?.isElev ? 'hsl(5,68%,48%)' : 'var(--primary)'}">
         ${topDig?.d || '—'}
       </div>
-      <div class="stat-card-sub">${topDig ? pct1(topDig.prob) + (topDig.isOC ? ' ⚠ OC' : topDig.isCalib ? ' ✓ calibrated' : '') : ''}</div>
+      <div class="stat-card-sub">${topDig ? pct1(topDig.prob) + (topDig.isElev ? ' ⚠ OC' : topDig.isCalib ? ' ✓ calibrated' : '') : ''}</div>
     </div>
   `;
 }
@@ -437,13 +437,13 @@ function renderDigitSection(data) {
 
   rankedDigits.forEach(d => {
     let zoneBadge;
-    if      (d.isOC)    zoneBadge = `<span class="cpill cpill-red">OC &gt;24%</span>`;
+    if      (d.isElev)    zoneBadge = `<span class="cpill cpill-red">OC &gt;24%</span>`;
     else if (d.isCalib) zoneBadge = `<span class="cpill cpill-green">Calibrated ✓</span>`;
     else if (d.isElev)  zoneBadge = `<span class="cpill cpill-amber">Elevated</span>`;
     else                zoneBadge = `<span class="cpill cpill-muted">Low</span>`;
 
     const ovColor = d.ovRatio > 1.5 ? 'hsl(15,78%,50%)' : d.ovRatio > 1 ? 'hsl(38,78%,50%)' : 'var(--muted-foreground)';
-    const scoreColor = d.isOC ? 'hsl(5,68%,48%)' : d.isCalib ? 'hsl(142,55%,40%)' : 'var(--foreground)';
+    const scoreColor = d.isElev ? 'hsl(5,68%,48%)' : d.isCalib ? 'hsl(142,55%,40%)' : 'var(--foreground)';
 
     html += `<tr>
       <td style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:1.125rem">${d.d}</td>
@@ -481,7 +481,7 @@ function renderBestNumbers(data) {
     // Model P: show strike-through raw + corrected if OC
     const pDisplay = s.anyOC
       ? `<span style="text-decoration:line-through;opacity:.4;font-size:.75rem">${pct2(s.pM)}</span><br>
-         <span style="font-size:.75rem;color:hsl(5,68%,48%);font-weight:600">~${pct2(s.pM * OC_CORR)}</span>`
+         <span style="font-size:.75rem;color:hsl(5,68%,48%);font-weight:600">~${pct2(s.pM)}</span>`
       : `<span style="font-family:'JetBrains Mono',monospace;font-size:.8rem">${pct2(s.pM)}</span>`;
 
     // Number-level overdue
@@ -532,7 +532,7 @@ function renderBestPairs(data) {
 
     const pDisplay = anyOC
       ? `<span style="text-decoration:line-through;opacity:.4;font-size:.75rem">${pct2(pPair)}</span>
-         <span style="font-size:.75rem;color:hsl(5,68%,48%);font-weight:600"> ~${pct2(pPair * OC_CORR)}</span>`
+         <span style="font-size:.75rem;color:hsl(5,68%,48%);font-weight:600"> ~${pct2(pPair)}</span>`
       : `<span style="font-family:'JetBrains Mono',monospace;font-size:.8rem">${pct2(pPair)}</span>`;
 
     const avgOD = ba
