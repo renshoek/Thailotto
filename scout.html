@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scout – Thai Lotto Analyzer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* ── Scout-page local styles ──────────────────────────────────── */
+
+    /* Shared input */
+    .select-input {
+      padding: .375rem .625rem; border: 1px solid var(--border);
+      border-radius: calc(var(--radius)*.75); background: var(--background);
+      color: var(--foreground); font-size: .875rem; font-family: inherit; cursor: pointer;
+    }
+    .select-input:focus { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+    /* Status */
+    .status-bar { display:flex; align-items:center; gap:.75rem; font-size:.75rem; color:var(--muted-foreground); padding:.5rem 0; flex-wrap:wrap; margin-top:.75rem; }
+    .status-dot { width:.5rem; height:.5rem; border-radius:50%; background:var(--muted-foreground); flex-shrink:0; }
+    .status-dot.live { background:#22c55e; box-shadow:0 0 0 3px #22c55e22; }
+
+    /* Stat cards */
+    .stat-cards-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:1rem; margin-top:1.25rem; }
+    .stat-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:1rem 1.25rem; box-shadow:var(--shadow-sm); }
+    .stat-card-label { font-size:.6875rem; color:var(--muted-foreground); font-weight:600; text-transform:uppercase; letter-spacing:.07em; }
+    .stat-card-value { font-size:1.875rem; font-weight:700; letter-spacing:-.03em; margin-top:.25rem; font-variant-numeric:tabular-nums; }
+    .stat-card-sub { font-size:.7rem; color:var(--muted-foreground); margin-top:.125rem; line-height:1.4; }
+
+    /* Section card */
+    .sc-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem 1.5rem; box-shadow:var(--shadow-sm); margin-top:1.25rem; }
+    .sc-card-title { font-size:.9375rem; font-weight:600; margin-bottom:.25rem; }
+    .sc-card-sub { font-size:.75rem; color:var(--muted-foreground); margin-bottom:1rem; line-height:1.65; }
+
+    .header-title { font-size:1.75rem; font-weight:600; letter-spacing:-.025em; }
+    .header-subtitle { font-size:.875rem; color:var(--muted-foreground); margin-top:.25rem; }
+
+    .range-wrap { display:flex; align-items:center; gap:.75rem; }
+    .range-wrap input[type=range] { flex:1; accent-color:var(--primary); cursor:pointer; }
+    .range-val { font-family:'JetBrains Mono',monospace; font-size:.8125rem; font-weight:600; min-width:3.5rem; text-align:right; }
+
+    /* Confidence pills */
+    .cpill { display:inline-flex; align-items:center; justify-content:center; font-size:.58rem; font-weight:700; text-transform:uppercase; padding:.15rem .45rem; border-radius:.25rem; letter-spacing:.05em; white-space:nowrap; }
+    .cpill-green { background:hsl(142,50%,88%); color:hsl(142,55%,26%); }
+    .dark .cpill-green { background:hsl(142,33%,18%); color:hsl(142,60%,64%); }
+    .cpill-amber { background:hsl(38,88%,90%); color:hsl(38,78%,26%); }
+    .dark .cpill-amber { background:hsl(38,36%,18%); color:hsl(38,78%,64%); }
+    .cpill-red { background:hsl(5,75%,90%); color:hsl(5,68%,30%); }
+    .dark .cpill-red { background:hsl(5,36%,20%); color:hsl(5,68%,64%); }
+    .cpill-muted { background:var(--border); color:var(--muted-foreground); }
+
+    /* Tier badges */
+    .tier-badge { display:inline-flex; align-items:center; justify-content:center; font-size:.62rem; font-weight:800; letter-spacing:.05em; padding:.2rem .45rem; border-radius:.25rem; white-space:nowrap; }
+    .tier-a  { background:hsl(142,50%,88%); color:hsl(142,55%,22%); }
+    .dark .tier-a { background:hsl(142,33%,18%); color:hsl(142,60%,68%); }
+    .tier-b  { background:hsl(215,75%,90%); color:hsl(215,75%,28%); }
+    .dark .tier-b { background:hsl(215,40%,20%); color:hsl(215,75%,68%); }
+    .tier-c  { background:var(--border); color:var(--muted-foreground); }
+    .tier-oc { background:hsl(5,75%,90%); color:hsl(5,68%,28%); }
+    .dark .tier-oc { background:hsl(5,36%,20%); color:hsl(5,68%,64%); }
+
+    /* Signal dots */
+    .sdot { display:inline-flex; align-items:center; justify-content:center; font-size:.58rem; font-weight:700; padding:.1rem .3rem; border-radius:3px; margin:0 .1rem; white-space:nowrap; }
+    .sdot-model { background:hsl(215,75%,90%); color:hsl(215,75%,30%); }
+    .dark .sdot-model { background:hsl(215,40%,20%); color:hsl(215,75%,68%); }
+    .sdot-od  { background:hsl(38,88%,90%); color:hsl(38,78%,26%); }
+    .dark .sdot-od { background:hsl(38,36%,18%); color:hsl(38,78%,64%); }
+    .sdot-hot { background:hsl(15,80%,90%); color:hsl(15,80%,28%); }
+    .dark .sdot-hot { background:hsl(15,36%,20%); color:hsl(15,80%,64%); }
+    .sdot-cal { background:hsl(142,50%,88%); color:hsl(142,55%,26%); }
+    .dark .sdot-cal { background:hsl(142,33%,18%); color:hsl(142,60%,64%); }
+    .sdot-oc  { background:hsl(5,75%,90%); color:hsl(5,68%,30%); }
+    .dark .sdot-oc { background:hsl(5,36%,20%); color:hsl(5,68%,64%); }
+
+    /* Avoid tags */
+    .avoid-tag { display:inline-flex; align-items:center; font-size:.58rem; font-weight:700; padding:.1rem .35rem; border-radius:3px; white-space:nowrap; margin:.1rem .05rem; }
+    .avoid-oc     { background:hsl(5,75%,90%);  color:hsl(5,68%,28%); }
+    .dark .avoid-oc { background:hsl(5,36%,20%); color:hsl(5,68%,64%); }
+    .avoid-recent { background:hsl(215,75%,90%); color:hsl(215,75%,28%); }
+    .dark .avoid-recent { background:hsl(215,40%,20%); color:hsl(215,75%,68%); }
+    .avoid-hot    { background:hsl(15,80%,90%);  color:hsl(15,80%,28%); }
+    .dark .avoid-hot { background:hsl(15,36%,20%); color:hsl(15,80%,64%); }
+    .avoid-fresh  { background:hsl(280,60%,90%); color:hsl(280,60%,28%); }
+    .dark .avoid-fresh { background:hsl(280,30%,20%); color:hsl(280,60%,68%); }
+    .avoid-low    { background:var(--border); color:var(--muted-foreground); }
+
+    /* Scout tables */
+    .sc-scroll { overflow-x:auto; }
+    .sc-tbl { width:100%; border-collapse:collapse; font-size:.8125rem; }
+    .sc-tbl thead th {
+      padding:.4rem .6rem; text-align:left;
+      border-bottom:2px solid var(--border);
+      font-size:.6rem; text-transform:uppercase; letter-spacing:.07em;
+      color:var(--muted-foreground); font-weight:600; white-space:nowrap;
+    }
+    .sc-tbl td { padding:.35rem .6rem; border-bottom:1px solid var(--border); vertical-align:middle; }
+    .sc-tbl tbody tr:last-child td { border-bottom:none; }
+    .sc-tbl tbody tr:hover { background:var(--background); }
+
+    /* Signal matrix */
+    .sc-matrix { border-collapse:separate; border-spacing:3px; background:transparent; box-shadow:none; margin:0; }
+    .sc-matrix th, .sc-matrix td { border:none; }
+
+    /* Disclaimer */
+    .sc-disclaimer {
+      background:var(--background); border:1px solid var(--border);
+      border-radius:calc(var(--radius)*.75); padding:.75rem 1rem;
+      font-size:.75rem; color:var(--muted-foreground); margin-top:.875rem; line-height:1.55;
+    }
+
+    /* Tier legend */
+    .tier-legend { display:flex; gap:1rem; flex-wrap:wrap; font-size:.75rem; color:var(--muted-foreground); margin-bottom:.875rem; align-items:center; }
+  </style>
+</head>
+<body>
+
+  <header class="header">
+    <div class="header-content" style="max-width:1400px;margin:0 auto;padding:0 1.5rem;">
+      <div>
+        <h1 class="header-title">Thai Lotto Analyzer</h1>
+        <p class="header-subtitle">Scout — Composite Cross-Signal Ranking</p>
+      </div>
+      <div style="display:flex;gap:.625rem;align-items:center;flex-wrap:wrap;">
+        <a href="index.html"       class="csv-btn">Analyzer</a>
+        <a href="insights.html"    class="csv-btn">Insights</a>
+        <a href="results.html"     class="csv-btn">Results</a>
+        <a href="csv.html"         class="csv-btn">CSV</a>
+        <a href="predictions.html" class="csv-btn">Predictions</a>
+        <a href="scout.html"       class="csv-btn">Scout</a>
+        <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
+          <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" id="mainContent" style="padding-bottom:3rem;">
+
+    <!-- Controls -->
+    <div class="panel-sticky-wrap" style="margin-top:1.5rem;">
+      <button class="panel-collapse-btn is-open" id="scoutPanelBtn" type="button">
+        <span class="pcb-left">
+          <span>⚙︎ Scout Controls</span>
+          <span class="pcb-summary" id="scoutPanelSum"></span>
+        </span>
+        <span class="pcb-chevron"></span>
+      </button>
+      <div class="panel-collapsible" id="scoutPanelBody">
+        <div class="control-panel">
+          <div class="controls-grid">
+
+            <div class="control-group" style="min-width:210px;">
+              <label class="control-label">Recency window W = <span id="recLbl">20</span></label>
+              <div class="range-wrap">
+                <input type="range" id="recSlider" min="10" max="40" value="20" step="1">
+                <span class="range-val"><span id="recLbl2">20</span> draws</span>
+              </div>
+              <span class="helper-text">Affects short-term frequency signal in the model (35% weight)</span>
+            </div>
+
+            <div class="control-group">
+              <label class="control-label" for="topNSel">Rows per section</label>
+              <select id="topNSel" class="select-input">
+                <option value="10">Top 10</option>
+                <option value="15" selected>Top 15</option>
+                <option value="20">Top 20</option>
+              </select>
+              <span class="helper-text">Applies to best picks and avoid list</span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status -->
+    <div class="status-bar">
+      <span id="statusDot" class="status-dot"></span>
+      <span id="statusText">Loading data from cache…</span>
+    </div>
+
+    <!-- Stat cards -->
+    <div id="statCards" class="stat-cards-row"></div>
+
+    <!-- How this page works -->
+    <div class="sc-card" style="border-left:3px solid var(--primary);margin-top:1.25rem;">
+      <div class="sc-card-title">How composite scoring works</div>
+      <div class="sc-card-sub" style="margin-bottom:0">
+        Each number (00–99) is scored across four independent signals and given a composite score (0–100):
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.875rem;margin-top:.875rem;font-size:.8rem;line-height:1.7;">
+        <div>
+          <strong>1 · Model P (50%)</strong><br>
+          Probability from the combined recency + overdue + base rate model.
+          OC-corrected: if any digit scores &gt;24%, probability is multiplied by 0.73 (the backtest correction factor).
+        </div>
+        <div>
+          <strong>2 · Number overdue (30%)</strong><br>
+          How far this specific number's current absence exceeds its own historical average gap.
+          Only counted when the number appeared ≥3 times (otherwise the gap estimate is unreliable).
+          Reliability-gated: weight scales up to 8 appearances.
+        </div>
+        <div>
+          <strong>3 · Calibrated zone (+5%)</strong><br>
+          Bonus if neither digit is OC and at least one is in the 17–20% zone — the only range the backtest showed directionally correct.
+        </div>
+        <div>
+          <strong>4 · Hot/cold (±5%)</strong><br>
+          Minor tiebreaker. Compares recent appearances vs expected rate. Low weight because recency-only strategies tested worse than random.
+        </div>
+      </div>
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:.875rem;font-size:.75rem;align-items:center;">
+        <strong style="font-size:.75rem">Tiers:</strong>
+        <span class="tier-badge tier-a">A</span><span style="font-size:.75rem"> ≥3 signals, no OC</span>
+        <span class="tier-badge tier-b">B</span><span style="font-size:.75rem"> 2 signals</span>
+        <span class="tier-badge tier-c">C</span><span style="font-size:.75rem"> 1 signal</span>
+        <span class="tier-badge tier-oc">OC</span><span style="font-size:.75rem"> Overconfident digit — model historically worse than random here</span>
+      </div>
+      <div class="sc-disclaimer" style="margin-top:.875rem">
+        ⚠️ All signals are statistically weak over 458 draws. Tier A means multiple weak signals align — not that the number will hit.
+        The composite is a structured ranking, not a prediction. No strategy achieves a statistically confirmed edge at this sample size.
+      </div>
+    </div>
+
+    <!-- Section 2: Digit ranking -->
+    <div class="sc-card">
+      <div class="sc-card-title">Digit Signal Ranking</div>
+      <div class="sc-card-sub">
+        All 10 digits ranked by model score. The <em>In top-30 picks</em> column counts how many of the top-30
+        composite numbers contain that digit — a convergence check between digit-level and number-level evidence.
+        OC digits (&gt;24%) should be treated with extra scepticism: backtest hit rate was 13.8%, below random 19%.
+      </div>
+      <div id="digitSection"></div>
+    </div>
+
+    <!-- Section 3: Best numbers -->
+    <div class="sc-card">
+      <div class="sc-card-title">Best Number Picks — Exact</div>
+      <div class="sc-card-sub">
+        Top numbers ranked by composite score. <em>Mirror</em> shown alongside each number — buy both tickets
+        (symmetry confirmed: "59" and "95" have equal probability).
+        <em>Num overdue</em> = this specific number's current absence relative to its own average gap.
+        <em>Hot/cold</em> = recent appearance rate vs expected; note recency-only strategies are worse than random.
+      </div>
+      <div id="bestNumbers"></div>
+    </div>
+
+    <!-- Section 4: Best pairs -->
+    <div class="sc-card">
+      <div class="sc-card-title">Best Pair Picks — Unordered {A,B}</div>
+      <div class="sc-card-sub">
+        Each row covers <strong>two tickets</strong> (AB and BA). Combined P = 2 × P(A) × P(B) for A≠B.
+        Composite is the average of both orientations. OC-corrected probability shown if either digit &gt;24%.
+        Always buy both orientations — they are statistically identical.
+      </div>
+      <div id="bestPairs"></div>
+    </div>
+
+    <!-- Section 5: Avoid list -->
+    <div class="sc-card">
+      <div class="sc-card-title">Numbers to Skip</div>
+      <div class="sc-card-sub">
+        Bottom composite scores among numbers that have appeared at least twice (enough to have a meaningful signal).
+        <em>Just drawn</em> = appeared more recently than half its average gap — model assigns it low overdue score.
+        <em>Running hot</em> = recent appearances well above expected rate — likely mean-reversion candidate.
+        <em>OC digit</em> = at least one digit was overconfident; model historically under-performed here.
+      </div>
+      <div id="avoidList"></div>
+    </div>
+
+    <!-- Section 6: Signal matrix -->
+    <div class="sc-card">
+      <div class="sc-card-title">Signal Matrix — All 100 Numbers</div>
+      <div class="sc-card-sub">
+        Each cell = one two-digit number. Green intensity = higher composite score. Red tint = contains an OC digit.
+        Hover for rank, score, and tier. Row = tens digit, column = units digit.
+      </div>
+      <div id="signalMatrix"></div>
+    </div>
+
+  </main>
+
+  <script src="scout.js"></script>
+  <script>
+  /* Nav active-page highlight */
+  (function () {
+    var page = location.pathname.split('/').pop() || 'index.html';
+    document.querySelectorAll('.csv-btn').forEach(function (el) {
+      var href = (el.getAttribute('href') || '').split('/').pop();
+      if (href === page || (page === '' && href === 'index.html')) el.classList.add('nav-active');
+    });
+  })();
+
+  /* Collapsible panel */
+  (function () {
+    var btn   = document.getElementById('scoutPanelBtn');
+    var body  = document.getElementById('scoutPanelBody');
+    var sumEl = document.getElementById('scoutPanelSum');
+    if (!btn || !body) return;
+    function getSummary() {
+      var rw = (document.getElementById('recLbl') || {}).textContent || '20';
+      var tn = (document.getElementById('topNSel') || {}).value || '15';
+      return 'W=' + rw + ' · top ' + tn;
+    }
+    function updateSummary() {
+      if (sumEl) sumEl.textContent = btn.classList.contains('is-open') ? '' : (' · ' + getSummary());
+    }
+    btn.addEventListener('click', function () {
+      var opening = !btn.classList.contains('is-open');
+      btn.classList.toggle('is-open');
+      if (opening) {
+        body.style.maxHeight = '2000px';
+        body.classList.remove('is-closed');
+      } else {
+        body.style.maxHeight = body.scrollHeight + 'px';
+        requestAnimationFrame(function () { body.classList.add('is-closed'); });
+      }
+      updateSummary();
+    });
+    document.addEventListener('change', updateSummary);
+    document.addEventListener('input',  updateSummary);
+    updateSummary();
+  })();
+  </script>
+</body>
+</html>
