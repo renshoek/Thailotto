@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Backtest History – Thai Lotto Analyzer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    :root { --bt-radius:.25rem; }
+    body { font-size:.875rem; }
+    .page-title { font-size:1.75rem; font-weight:700; letter-spacing:-.025em; margin:0; }
+    .page-sub   { font-size:.875rem; color:var(--muted-foreground); margin-top:.25rem; }
+    .status-bar { display:flex; align-items:center; gap:.75rem; font-size:.75rem; color:var(--muted-foreground); padding:.5rem 0; flex-wrap:wrap; margin-top:.75rem; }
+    .status-dot { width:.5rem; height:.5rem; border-radius:50%; background:var(--muted-foreground); flex-shrink:0; }
+    .status-dot.live { background:#22c55e; box-shadow:0 0 0 3px #22c55e22; }
+
+    /* Section headers */
+    .bt-section { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem 1.5rem; box-shadow:var(--shadow-sm); margin-top:1.5rem; }
+    .bt-section-title { font-size:1.0625rem; font-weight:700; margin:0 0 .25rem; }
+    .bt-section-sub { font-size:.75rem; color:var(--muted-foreground); line-height:1.65; margin-bottom:1rem; }
+
+    /* Summary row */
+    .bt-summary { display:flex; gap:1.25rem; flex-wrap:wrap; padding:.625rem .875rem; background:var(--background); border:1px solid var(--border); border-radius:calc(var(--radius)*.75); margin-bottom:1rem; }
+    .bt-sum-item { display:flex; flex-direction:column; gap:.15rem; }
+    .bt-sum-lbl  { font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted-foreground); }
+    .bt-sum-val  { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.9375rem; }
+
+    /* Year table */
+    .yr-tbl { width:100%; border-collapse:collapse; font-size:.8rem; margin-bottom:1.25rem; }
+    .yr-tbl th { padding:.35rem .65rem; text-align:left; border-bottom:2px solid var(--border); font-size:.6rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted-foreground); font-weight:600; }
+    .yr-tbl td { padding:.3rem .65rem; border-bottom:1px solid var(--border); font-family:'JetBrains Mono',monospace; }
+    .yr-tbl tbody tr:last-child td { border-bottom:none; }
+    .yr-tbl tbody tr:hover { background:var(--background); }
+
+    /* Full history table — predictions model */
+    .bt-wrap { overflow-x:auto; }
+    .pred-hdr, .pred-row {
+      display:grid;
+      grid-template-columns:6.5rem 3rem 4.5rem 6.5rem 1fr 2.5rem 2.5rem 2.5rem;
+      gap:.35rem; padding:.3rem .5rem; align-items:center;
+    }
+    .pred-hdr { border-bottom:2px solid var(--border); font-size:.57rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted-foreground); position:sticky; top:0; background:var(--card); z-index:1; }
+    .pred-row { border-bottom:1px solid var(--border); font-size:.8125rem; }
+    .pred-row:last-child { border-bottom:none; }
+    .pred-row:hover { background:var(--background); }
+
+    /* Full history table — scout model */
+    .sc-hdr, .sc-row {
+      display:grid;
+      grid-template-columns:6.5rem 3rem 5rem 4rem 3rem 5.5rem 6rem 1fr 2.5rem;
+      gap:.3rem; padding:.3rem .5rem; align-items:center;
+    }
+    .sc-hdr { border-bottom:2px solid var(--border); font-size:.57rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted-foreground); position:sticky; top:0; background:var(--card); z-index:1; }
+    .sc-row { border-bottom:1px solid var(--border); font-size:.8125rem; }
+    .sc-row:last-child { border-bottom:none; }
+    .sc-row:hover { background:var(--background); }
+
+    .bt-date   { font-family:'JetBrains Mono',monospace; font-size:.7rem; color:var(--muted-foreground); }
+    .bt-actual { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.9375rem; }
+    .bt-chips  { display:flex; flex-wrap:wrap; gap:.2rem; }
+    .bt-chip   { font-family:'JetBrains Mono',monospace; font-size:.62rem; font-weight:500; padding:.1rem .26rem; border-radius:3px; border:1px solid var(--border); background:var(--background); }
+    .bt-chip.pair-hit  { background:hsl(142,55%,44%); border-color:hsl(142,55%,44%); color:#fff; font-weight:700; }
+    .bt-chip.elev-pred { border-color:hsl(38,78%,52%); color:hsl(38,60%,40%); }
+    .dark .bt-chip.elev-pred { color:hsl(38,78%,64%); }
+    .bt-cell { text-align:center; font-size:.7rem; font-weight:600; }
+    .bt-yes   { color:hsl(142,55%,38%); }
+    .dark .bt-yes { color:hsl(142,60%,60%); }
+    .bt-hit2  { color:hsl(215,75%,50%); font-family:'JetBrains Mono',monospace; font-size:.7rem; text-align:center; }
+    .dark .bt-hit2 { color:hsl(215,75%,65%); }
+    .bt-hit4  { color:hsl(280,60%,55%); font-family:'JetBrains Mono',monospace; font-size:.7rem; text-align:center; }
+    .dark .bt-hit4 { color:hsl(280,60%,70%); }
+    .bt-no    { color:var(--muted-foreground); opacity:.3; text-align:center; }
+
+    .tier-badge { display:inline-flex; align-items:center; justify-content:center; font-size:.62rem; font-weight:800; letter-spacing:.05em; padding:.2rem .45rem; border-radius:.25rem; white-space:nowrap; }
+    .tier-a { background:hsl(142,50%,88%); color:hsl(142,55%,22%); }
+    .dark .tier-a { background:hsl(142,33%,18%); color:hsl(142,60%,68%); }
+    .tier-b { background:hsl(215,75%,90%); color:hsl(215,75%,28%); }
+    .dark .tier-b { background:hsl(215,40%,20%); color:hsl(215,75%,68%); }
+    .tier-c { background:var(--border); color:var(--muted-foreground); }
+
+    /* Scrollable history container */
+    .history-scroll { max-height:600px; overflow-y:auto; border:1px solid var(--border); border-radius:calc(var(--radius)*.75); }
+
+    .loading-msg { padding:3rem; text-align:center; color:var(--muted-foreground); }
+
+    .section-toggle { cursor:pointer; user-select:none; display:flex; align-items:center; gap:.5rem; }
+    .section-toggle::after { content:'▲'; font-size:.65rem; color:var(--muted-foreground); transition:transform .2s; }
+    .section-toggle.collapsed::after { transform:rotate(180deg); }
+    .section-body { overflow:hidden; transition:max-height .3s ease; }
+    .section-body.hidden { display:none; }
+
+    .compare-bar { background:var(--background); border:1px solid var(--border); border-radius:calc(var(--radius)*.75); padding:1rem 1.25rem; margin-bottom:1.5rem; }
+    .compare-title { font-size:.8125rem; font-weight:600; margin-bottom:.75rem; }
+    .compare-row { display:grid; grid-template-columns:6rem 1fr 1fr; gap:.75rem; align-items:center; margin-bottom:.5rem; font-size:.75rem; }
+    .cbar-track { height:8px; background:var(--border); border-radius:4px; overflow:hidden; }
+    .cbar-fill  { height:100%; border-radius:4px; }
+    .cbar-lbl   { font-family:'JetBrains Mono',monospace; font-size:.75rem; font-weight:600; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-content" style="max-width:1400px;margin:0 auto;padding:0 1.5rem;">
+      <div>
+        <h1 class="page-title">Thai Lotto Analyzer</h1>
+        <p class="page-sub">Full Backtest History — Predictions &amp; Scout</p>
+      </div>
+      <div style="display:flex;gap:.625rem;align-items:center;flex-wrap:wrap;">
+        <a href="index.html"       class="csv-btn">Analyzer</a>
+        <a href="insights.html"    class="csv-btn">Insights</a>
+        <a href="results.html"     class="csv-btn">Results</a>
+        <a href="csv.html"         class="csv-btn">CSV</a>
+        <a href="predictions.html" class="csv-btn">Predictions</a>
+        <a href="scout.html"       class="csv-btn">Scout</a>
+        <a href="backtest.html"    class="csv-btn">Backtest</a>
+        <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
+          <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="padding-bottom:3rem;">
+    <div class="status-bar">
+      <span id="statusDot" class="status-dot"></span>
+      <span id="statusText">Loading…</span>
+    </div>
+
+    <div id="compareSec" style="margin-top:1.25rem;display:none;"></div>
+
+    <!-- Section 1: Predictions -->
+    <div class="bt-section">
+      <div class="bt-section-title section-toggle" id="predToggle">Predictions Model — Full History</div>
+      <div class="bt-section-sub">
+        Top-N pair hit: actual drawn number or its mirror appears in the top-N model probability list.
+        +2 / +4 = hit within 2 or 4 draws from the prediction point.
+        Chips outlined in amber = digit was in elevated zone (&gt;22%) at prediction time.
+        Auto-updates whenever new draws are imported in the Analyzer.
+      </div>
+      <div id="predSummary" class="loading-msg">Computing…</div>
+      <div id="predYearTable"></div>
+      <div class="bt-wrap section-body" id="predBody">
+        <div class="history-scroll" id="predGrid"></div>
+      </div>
+    </div>
+
+    <!-- Section 2: Scout -->
+    <div class="bt-section">
+      <div class="bt-section-title section-toggle" id="scoutToggle">Scout Composite — Full History</div>
+      <div class="bt-section-sub">
+        Top-N composite hit: actual drawn number or mirror in the top-N composite-scored list.
+        <strong>Rank</strong> = position of actual number in full composite ranking (1 = highest scored, 100 = lowest).
+        <strong>Tier</strong> = tier assigned to actual drawn number at prediction time.
+        If tiers are meaningful, tier-A draws should be over-represented vs. tier-C draws.
+        Auto-updates whenever new draws are imported in the Analyzer.
+      </div>
+      <div id="scoutSummary" class="loading-msg">Computing…</div>
+      <div id="scoutYearTable"></div>
+      <div class="bt-wrap section-body" id="scoutBody">
+        <div class="history-scroll" id="scoutGrid"></div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+  'use strict';
+  // ═══════════════════════════════════════════════════════════════════════
+  //  SHARED CONSTANTS
+  // ═══════════════════════════════════════════════════════════════════════
+  var DIGITS    = ['0','1','2','3','4','5','6','7','8','9'];
+  var W_REC     = 0.50, W_OV = 0.20, W_BASE = 0.30;
+  var OV_CAP    = 2.0, REC_WIN = 15, MIN_HIST = 30;
+  var CALIB_LO  = 0.17, CALIB_HI = 0.22;
+  var TOP_N     = 15;
+
+  var DB_NAME    = 'thai-lotto-agg-db';
+  var STORE_NAME = 'agg-store';
+  var CACHE_KEY  = 'perFileAggMap_v2';
+
+  var allDraws = [];
+
+  function $el(id) { return document.getElementById(id); }
+  function mirrorNum(n) { return n[1] + n[0]; }
+  function fmt1(v) { return (v * 100).toFixed(1) + '%'; }
+  function fmt2(v) { return (v * 100).toFixed(2) + '%'; }
+  function parseNums(s) { return s ? s.split(',').map(function(x){return x.trim();}).filter(Boolean) : []; }
+
+  // ── Theme ────────────────────────────────────────────────────────────
+  $el('themeToggle').addEventListener('click', function() {
+    var dark = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', dark ? 'dark' : 'light');
+  });
+  (function() {
+    var s = localStorage.getItem('theme');
+    if (s === 'dark' || (!s && window.matchMedia('(prefers-color-scheme:dark)').matches))
+      document.documentElement.classList.add('dark');
+  })();
+
+  // Section collapse toggles
+  ['predToggle','scoutToggle'].forEach(function(id) {
+    $el(id).addEventListener('click', function() {
+      var bodyId = id === 'predToggle' ? 'predBody' : 'scoutBody';
+      var body = $el(bodyId);
+      $el(id).classList.toggle('collapsed');
+      body.classList.toggle('hidden');
+    });
+  });
+
+  // Nav active
+  document.querySelectorAll('.csv-btn').forEach(function(el) {
+    var href = (el.getAttribute('href') || '').split('/').pop();
+    if (href === 'backtest.html') el.classList.add('nav-active');
+  });
+
+  // ── Cache ─────────────────────────────────────────────────────────────
+  function loadCache() {
+    return new Promise(function(resolve) {
+      var req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = function(ev) {
+        if (!ev.target.result.objectStoreNames.contains(STORE_NAME))
+          ev.target.result.createObjectStore(STORE_NAME);
+      };
+      req.onsuccess = function(ev) {
+        var get = ev.target.result.transaction(STORE_NAME,'readonly').objectStore(STORE_NAME).get(CACHE_KEY);
+        get.onsuccess = function() { resolve(get.result || null); };
+        get.onerror   = function() { resolve(null); };
+      };
+      req.onerror = function() { resolve(null); };
+    });
+  }
+
+  // ── Core model ────────────────────────────────────────────────────────
+  function computeModel(seq, W) {
+    var n = seq.length;
+    if (n < MIN_HIST) return null;
+    var safeW = Math.min(W, n - 1);
+    var recCnt = {}, baseCnt = {}, lastSeen = {}, gapLists = {};
+    for (var di = 0; di < DIGITS.length; di++) {
+      var d = DIGITS[di];
+      recCnt[d] = 0; baseCnt[d] = 0; lastSeen[d] = -1; gapLists[d] = [];
+    }
+    var recStart = n - safeW;
+    for (var i = 0; i < n; i++) {
+      var num = seq[i], d0 = num[0], d1 = num[1];
+      baseCnt[d0]++; baseCnt[d1]++;
+      if (i >= recStart) { recCnt[d0]++; recCnt[d1]++; }
+      if (lastSeen[d0] >= 0) gapLists[d0].push(i - lastSeen[d0]);
+      lastSeen[d0] = i;
+      if (d1 !== d0) {
+        if (lastSeen[d1] >= 0) gapLists[d1].push(i - lastSeen[d1]);
+        lastSeen[d1] = i;
+      }
+    }
+    var raw = {}, meta = {};
+    for (var di2 = 0; di2 < DIGITS.length; di2++) {
+      var dig = DIGITS[di2];
+      var recFreq  = recCnt[dig]  / (2 * safeW);
+      var baseFreq = baseCnt[dig] / (n * 2);
+      var gaps = gapLists[dig];
+      var avgGap = gaps.length >= 2 ? gaps.reduce(function(a,b){return a+b;},0)/gaps.length : 5.0;
+      var since  = lastSeen[dig] >= 0 ? (n - 1 - lastSeen[dig]) : n;
+      var ovRaw  = since / Math.max(avgGap, 1);
+      raw[dig]  = W_REC * recFreq + W_OV * Math.min(ovRaw, OV_CAP) / OV_CAP + W_BASE * baseFreq;
+      meta[dig] = { recFreq: recFreq, baseFreq: baseFreq, avgGap: avgGap, since: since, ovRatioRaw: ovRaw };
+    }
+    var total = 0;
+    for (var di3 = 0; di3 < DIGITS.length; di3++) total += raw[DIGITS[di3]];
+    var digitProb = {};
+    for (var di4 = 0; di4 < DIGITS.length; di4++) {
+      var dg = DIGITS[di4], p = raw[dg] / total;
+      digitProb[dg]    = p;
+      meta[dg].prob    = p;
+      meta[dg].vsBase  = p - meta[dg].baseFreq;
+      meta[dg].pDraw   = 1 - Math.pow(1 - p, 2);
+      meta[dg].isCalib = (p >= CALIB_LO && p <= CALIB_HI);
+      meta[dg].isElev  = (p > CALIB_HI);
+    }
+    var numProbs = {};
+    for (var ai = 0; ai < DIGITS.length; ai++) {
+      for (var bi = 0; bi < DIGITS.length; bi++) {
+        numProbs[DIGITS[ai]+DIGITS[bi]] = digitProb[DIGITS[ai]] * digitProb[DIGITS[bi]];
+      }
+    }
+    return { digitProb: digitProb, digitMeta: meta, numProbs: numProbs };
+  }
+
+  // ── Scout composite (lean, for backtest) ──────────────────────────────
+  function computeRankedBT(drawSlice) {
+    var seq = [];
+    for (var qi = 0; qi < drawSlice.length; qi++) seq.push(drawSlice[qi].twoNum);
+    var mdl = computeModel(seq, REC_WIN);
+    if (!mdl) return null;
+    var digitMeta = mdl.digitMeta, numProbs = mdl.numProbs, N = drawSlice.length;
+    var appearances = {};
+    for (var ni = 0; ni <= 99; ni++) appearances[String(ni).padStart(2,'0')] = [];
+    for (var di = 0; di < N; di++) {
+      var num = drawSlice[di].twoNum;
+      if (appearances[num]) appearances[num].push(di);
+    }
+    var allNums = [];
+    for (var ni2 = 0; ni2 <= 99; ni2++) {
+      var numStr = String(ni2).padStart(2,'0');
+      var dA = numStr[0], dB = numStr[1];
+      var idx = appearances[numStr], freq = idx.length;
+      var avgGap = N, since = N, overdueFrac = 0;
+      if (freq >= 1) since = N - 1 - idx[freq - 1];
+      if (freq >= 2) {
+        var gs = 0;
+        for (var gi = 1; gi < idx.length; gi++) gs += idx[gi] - idx[gi-1];
+        avgGap = gs / (idx.length - 1);
+        overdueFrac = Math.max(-2, Math.min(3, (since - avgGap) / Math.max(1, avgGap)));
+      }
+      var reliab   = Math.min(1, freq / 8);
+      var odBonus  = freq >= 3 ? Math.max(0, overdueFrac) * reliab : 0;
+      var acalib   = digitMeta[dA].isCalib, bcalib = digitMeta[dB].isCalib;
+      allNums.push({
+        num: numStr, pM: numProbs[numStr],
+        aCalib: acalib, bCalib: bcalib,
+        aElev: digitMeta[dA].isElev, bElev: digitMeta[dB].isElev,
+        odBonus: odBonus, calibBonus: (acalib || bcalib) ? 1 : 0, freq: freq
+      });
+    }
+    var maxPM = 0.0001, maxOD = 0.0001;
+    for (var mi = 0; mi < allNums.length; mi++) {
+      if (allNums[mi].pM      > maxPM) maxPM = allNums[mi].pM;
+      if (allNums[mi].odBonus > maxOD) maxOD = allNums[mi].odBonus;
+    }
+    for (var si = 0; si < allNums.length; si++) {
+      var e = allNums[si];
+      var normP = e.pM / maxPM, normOD = e.odBonus / maxOD;
+      e.composite = Math.round(Math.max(0, Math.min(100,
+        (normP * 0.60 + normOD * 0.30 + e.calibBonus * 0.10) * 100)));
+      var sigs = 0;
+      if (normP  > 0.5)                  sigs++;
+      if (normOD > 0.35 && e.freq >= 3) sigs++;
+      if (e.aCalib || e.bCalib)         sigs++;
+      e.tier = sigs >= 3 ? 'A' : sigs === 2 ? 'B' : 'C';
+    }
+    return allNums.slice().sort(function(x, y) { return y.composite - x.composite; });
+  }
+
+  // ── Run predictions backtest ──────────────────────────────────────────
+  function runPredBacktest() {
+    var N = allDraws.length, out = [];
+    for (var i = MIN_HIST; i < N; i++) {
+      var seq   = allDraws.slice(0, i).map(function(d) { return d.twoNum; });
+      var model = computeModel(seq, REC_WIN);
+      if (!model) continue;
+      var numProbs   = model.numProbs, digitMeta = model.digitMeta;
+      var topNums    = Object.entries(numProbs).sort(function(a,b){return b[1]-a[1];}).slice(0, TOP_N).map(function(e){return e[0];});
+      var actual     = allDraws[i].twoNum;
+      var pActual    = Math.max(numProbs[actual] || 0, numProbs[mirrorNum(actual)] || 0);
+      var pairHit    = topNums.indexOf(actual) >= 0 || topNums.indexOf(mirrorNum(actual)) >= 0;
+      var topDigs    = DIGITS.slice().sort(function(a, b) { return digitMeta[b].prob - digitMeta[a].prob; }).slice(0, 4);
+      function hor(k) {
+        for (var j = 1; j <= k && (i + j) < N; j++) {
+          var a = allDraws[i + j].twoNum;
+          if (topNums.indexOf(a) >= 0 || topNums.indexOf(mirrorNum(a)) >= 0) return a;
+        }
+        return null;
+      }
+      out.push({ i: i, dateStr: allDraws[i].dateStr, actual: actual,
+                 topNums: topNums, topDigs: topDigs, pActual: pActual,
+                 pairHit: pairHit, hit2: hor(2), hit4: hor(4), digitMeta: digitMeta });
+    }
+    return out;
+  }
+
+  // ── Run scout backtest ────────────────────────────────────────────────
+  function runScoutBacktest() {
+    var N = allDraws.length, out = [];
+    for (var i = MIN_HIST; i < N; i++) {
+      var slice  = allDraws.slice(0, i);
+      var ranked = computeRankedBT(slice);
+      if (!ranked) continue;
+      var actual = allDraws[i].twoNum, mirAct = mirrorNum(actual);
+      var actualRank = -1, actualTier = 'C', actualScore = 0;
+      for (var r = 0; r < ranked.length; r++) {
+        if (ranked[r].num === actual || ranked[r].num === mirAct) {
+          actualRank = r + 1; actualTier = ranked[r].tier; actualScore = ranked[r].composite;
+          break;
+        }
+      }
+      var tierANums = [];
+      for (var tr = 0; tr < TOP_N && tr < ranked.length; tr++) {
+        if (ranked[tr].tier === 'A') tierANums.push(ranked[tr].num);
+      }
+      
