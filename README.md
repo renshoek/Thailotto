@@ -47,36 +47,6 @@ The Thai Government Lottery draws twice per month — on the **1st** and **16th*
 
 ---
 
-## Local setup
-
-No dependencies to install for the front-end. Just serve the project root:
-
-```bash
-# Python
-python -m http.server 8080
-
-# Node
-npx serve .
-```
-
-Then open `http://localhost:8080`.
-
-### Updating draw data
-
-A Node.js helper script downloads the latest `lottonumbers/` folder from the archive repo:
-
-```bash
-node updateLottoFolder.js
-```
-
-Requires Node 18+ and `adm-zip`:
-
-```bash
-npm install adm-zip
-```
-
----
-
 ## Caveats
 
 The probability model is descriptive, not prescriptive. The backtested lift over baseline (18.2% vs 15.0%) does not reach p<0.05, and the draw has been confirmed statistically fair by Chi² test (15.09 < 16.9 critical). Use the predictions and scout pages for pattern exploration, not as a betting system.
